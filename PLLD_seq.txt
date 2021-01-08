@@ -1,0 +1,91 @@
+1. check is simulated or not
+	if already simulated, surfacePos = 0
+2. lowestTargetPosition -= collisionCompressionTolerance->(4.0 @ chipCalibrationService.json)
+3. firmware.setValveOpenResponseMs(index, uint NonPipettingRespMs->(60 @ pipetting.json)) 
+4. firmware.startRegulatorMode
+	-Set mode
+	-target
+	-pidSelect
+	-activeDPCVolumeLImit
+	-Volume LImit
+5. SetFreq
+6. FreqSet Delay
+7. FindThreshold
+	a. setSensorAveragingWindowSize (P1 n P2) (id p1, windowSize)(id p2, windowsize)
+		sensorID:
+			Collision = 0,
+			DLLT = 1,
+			Pressure1 = 2,
+			Pressure2 = 3
+	b. Averaging Pressure (p reff) (pressureAveragingSample) 
+	c. waitAveragingDone
+	d. GetPressureRef
+	e. Dynamic Thres or not?
+	if Dynamic: return pref+threshold
+		f. getPressureMinMax (we get it from averaging sample)
+		g. thres = (maxp2 - minp2)/2*AbortPressureThreshold
+	else
+		f. thres = AbortPressureThreshold
+8. ClearStemNormalAbort -> falsing every abort
+	a. AbortMotions (motor) clear
+	b. AbortOnTipCollision2
+	c. AbortOnStemCurrent
+	d. AbortONSyringePressure2
+	e. ClearTriggeredInputs.pipetteStemNormal
+9. ClearZHardBrakeAbortConfigAndFaults -> falsing every abort
+	a. pipetteAborts[pipeteAbortType.PipetteStemHardBrake][index].init()
+	b. setAbortConfig(PipetteAbortType.PipetteStemHardbrake)
+	c. ClearTriggeredInput(PipetteAbortType.PipetteStemHardbrake)
+10. ClearValveInAbort -> falsing every abort
+	a. AbortOnTipCollision2
+	b. AbortOnStemCurrent
+	c. AbortOnSyringePressure2
+	d. SetAbortConfig(valInConfigs)
+	e. CkearTruggeredUBoyts(PipetteAbortType.ValveIn)
+11. SetAbortPLLD
+	a. setAbortThresholdAnalogInput
+		SetAbortThreshold(index, AbortAnalogInput.CollisionSensor2, _pipette.ReadAnalogSensor(index, AnalogSensor.Collision) - _plldConfigs[index].AbortCollisionThreshold);
+		SetAbortThreshold(index, AbortAnalogInput.PressureSensor2, threshold);
+		SetAbortThreshold(index, AbortAnalogInput.StemCurrentSensor, _plldConfigs[index].CurrentSensorThreshold);
+		SetAbortThreshold(index, AbortAnalogInput.LiquidLevelSensor, ReadAnalogSensor(index, AnalogSensor.Dllt) - _plldConfigs[index].AbortResistanceThreshold);
+	b. StemNormal Config
+		_stemNormalConfigs[index].AbortDelay = 0;
+		_stemNormalConfigs[index].TriggerOnAll = false;
+		_stemNormalConfigs[index].AbortInputFlag.AbortOnTipCollision2 = true;
+		_stemNormalConfigs[index].AbortInputFlag.AbortOnStemCurrent = true;
+		_stemNormalConfigs[index].AbortInputFlag.AbortOnSyringePressure2 = true;
+		_pipette.SetAbortConfig(index, _stemNormalConfigs[index]);
+	c. StemHardBrake
+		_stemHardBrakeConfigs[index].AbortDelay = 0;
+		_stemHardBrakeConfigs[index].TriggerOnAll = false;
+		_stemHardBrakeConfigs[index].AbortInputFlag.AbortOnTipCollision2 = true;
+		_stemHardBrakeConfigs[index].AbortInputFlag.AbortOnStemCurrent = true;
+		_stemHardBrakeConfigs[index].AbortInputFlag.AbortOnLiquidLevelSensor = true;
+		_pipette.SetAbortConfig(index, _stemHardBrakeConfigs[index]);
+	d. ValveInConfigs
+		_valvInConfigs[index].AbortDelay = 0;
+		_valvInConfigs[index].TriggerOnAll = false;
+		_stemHardBrakeConfigs[index].AbortInputFlag.AbortOnTipCollision2 = true;
+		_stemHardBrakeConfigs[index].AbortInputFlag.AbortOnStemCurrent = true;
+		_valvInConfigs[index].AbortInputFlag.AbortOnSyringePressure2 = true;
+		_pipette.SetAbortConfig(index, _valvInConfigs[index]);
+12. Move Motor Z
+13. if no error: Wait EOM
+14. StopPipetting (.set() method to stop threading on firmware)
+	a. AbortFlowFunct
+	b. tareDone
+	c. CalibrateDOne
+	d. CountVolumeDone
+	e. averagingDone
+	f. pipettingDone
+15. abortFlag normal (N) and hardz (H) (getTriggeredInput)
+	if abortFlag.abortOnTipCollision (N, H): collision triggered
+	elif abortOnLiquidLevel (H): liquidSurfaceFound -> getPos
+	elif abortOnSyringePressure (N): LiquidSurfacefound -> getpos
+	elif AbortOnStemCurrent (N, H): OverCurrent
+	else travellimitreached
+16. stopAndSaveFile
+17. ClearStemNormalAbort
+18. ClearStemHardBrakeAbort
+19. ClearValveInAbort
+20. getpos

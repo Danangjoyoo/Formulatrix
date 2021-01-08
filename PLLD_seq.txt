@@ -43,6 +43,14 @@
 	d. SetAbortConfig(valInConfigs)
 	e. CkearTruggeredUBoyts(PipetteAbortType.ValveIn)
 11. SetAbortPLLD
+		abortAnalogInputID:
+			PressureSensor1 = 0,
+		    PressureSensor2 = 1,
+		    CollisionSensor1 = 2,
+		    CollisionSensor2 = 3,
+		    WlldSensor = 4,
+		    StemCurrentSensor = 5,
+		    LiquidLevelSensor = 6,
 	a. setAbortThresholdAnalogInput
 		SetAbortThreshold(index, AbortAnalogInput.CollisionSensor2, _pipette.ReadAnalogSensor(index, AnalogSensor.Collision) - _plldConfigs[index].AbortCollisionThreshold);
 		SetAbortThreshold(index, AbortAnalogInput.PressureSensor2, threshold);
@@ -73,19 +81,41 @@
 13. if no error: Wait EOM
 14. StopPipetting (.set() method to stop threading on firmware)
 	a. AbortFlowFunct
-	b. tareDone
+	b. tareDone -> jadiin true semua yg harus jadi done
 	c. CalibrateDOne
 	d. CountVolumeDone
 	e. averagingDone
 	f. pipettingDone
-15. abortFlag normal (N) and hardz (H) (getTriggeredInput)
+15. abortFlag normal(N) & hardz(H) (getTriggeredInput(id))
+		pipetteAbortType id:			
+		    PipetteStemNormal = 0,
+		    PipetteStemHardbrake = 1,
+		    PipetteStemWithRelease = 2,
+		    PipetteEStop = 3,
+		    PipetteTouchOff = 4,
+		    ValveRelease = 5,
+		    ValveIn = 6,    
+		    PipetteAbort = 7,
 	if abortFlag.abortOnTipCollision (N, H): collision triggered
 	elif abortOnLiquidLevel (H): liquidSurfaceFound -> getPos
 	elif abortOnSyringePressure (N): LiquidSurfacefound -> getpos
 	elif AbortOnStemCurrent (N, H): OverCurrent
 	else travellimitreached
 16. stopAndSaveFile
-17. ClearStemNormalAbort
-18. ClearStemHardBrakeAbort
-19. ClearValveInAbort
+17. ClearStemNormalAbort -> falsing every abort
+	a. AbortMotions (motor) clear
+	b. AbortOnTipCollision2
+	c. AbortOnStemCurrent
+	d. AbortONSyringePressure2
+	e. ClearTriggeredInputs.pipetteStemNormal
+18. ClearZHardBrakeAbortConfigAndFaults -> falsing every abort
+	a. pipetteAborts[pipeteAbortType.PipetteStemHardBrake][index].init()
+	b. setAbortConfig(PipetteAbortType.PipetteStemHardbrake)
+	c. ClearTriggeredInput(PipetteAbortType.PipetteStemHardbrake)
+19. ClearValveInAbort -> falsing every abort
+	a. AbortOnTipCollision2
+	b. AbortOnStemCurrent
+	c. AbortOnSyringePressure2
+	d. SetAbortConfig(valveInConfigs)
+	e. ClearTriggeredAborts(PipetteAbortType.ValveIn)
 20. getpos

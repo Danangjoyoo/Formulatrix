@@ -1,0 +1,26 @@
+TravelLimit -> chipCalibrationService.json
+upperLimit = 9.0
+lowerLimit = -148.0
+
+==============================================================
+
+DLLT threshold should be found first before DLLT start!
+findThreshold
+
+Init():
+1. stop()
+2. firmware: setDLLTpid(p,i,d,samplingTime) -> ResLLT.json
+3. firmware: startDLLTMoveProfile(vel, acc, inverted) -> ResLLT.json
+
+start():
+1. SetAbortConfig(TriggerOnAll)
+2. firmware: setDlltLimit(True, upperTh, lowerTh) -> prereadingllt.json
+	"DlltMinThreshold": -700,
+	"DlltMaxThreshold": 700,
+3. firmware: startDLLT(threshold, stepSize, bigStep) -> ResLLT.json
+
+stop():
+1. firmware = stopDLLT()
+2. checkAndClearZCollisionAbort:
+	if stemNormal and hardZ collision is triggered:
+		clearAbort

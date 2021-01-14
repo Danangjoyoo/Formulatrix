@@ -6,7 +6,9 @@ Init (trackFactor)
 
 Start (trackFactor)
 1. setAbortConfig (motion abort -> triggerOnAll), abortDelay = 0
-2. firmware: setTrackingLImit(bool isLimit=Enable, double upperThres, double lowerThres) (upperTh, lowerTh -> GeoLLT.json)
+2. firmware: setTrackingLImit(bool isLimit=Enable, double upperThres, double lowerThres) (upperTh, lowerTh == TravelLimit -> chipCalibrationService.json)
+	upperLimit = 9.0
+	lowerLimit = -148.0
 3. firmware: setMotorTrackingConfig -> GeoLLT.json
 	double trackingFactor = trackFactor
 	double followerThreshold = threshold

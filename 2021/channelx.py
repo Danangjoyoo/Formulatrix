@@ -1753,9 +1753,11 @@ class PrereadingConfig():
 	readDelay = 200/1000.0
 	freq = 120
 	freq_delay = 250/1000.0
+	dlltMinThres = -700
+	dlltMaxThres = 700
 
 class DLLTConfig():
-	class res:
+	class Res:
 		stepSize = 0.5
 		bigStep = 2
 		kp = 1.5
@@ -1767,7 +1769,7 @@ class DLLTConfig():
 		stem_acc = 10000
 		colThres = 40
 
-	class geo:
+	class Geo:
 		trackFactor = 6.36
 		stem_vel = 150
 		stem_acc = 2000
@@ -1821,11 +1823,11 @@ def setUp_plld(lowSpeed=False):
 	current = 1 <<InputAbort.CurrentMotorZ
 	wlld = 1 << InputAbort.LiquidLevelSensor
 	#p.set_abort_config(AbortID.TouchOffOut,0,current+collision+wlld,collision+wlld,0)
-	p.set_abort_config(AbortID.NormalAbortZ,0,pressure+current+collision,collision,0)
 	p.set_abort_config(AbortID.ValveClose,0,pressure+current+collision,collision,0)
 	if lowSpeed:
 		p.set_abort_config(AbortID.HardZ,0,pressure+collision+wlld+current,collision+wlld,0)
-	else:
+	else: # normal PLLD
+		p.set_abort_config(AbortID.NormalAbortZ,0,pressure+current+collision,collision,0)
 		p.set_abort_config(AbortID.HardZ,0,collision+wlld+current,collision+wlld,0)
 	return p_ref
 
@@ -1847,9 +1849,11 @@ def setUp_wlld():
 	p.set_abort_config(AbortID.ValveClose,0,current+collision+wlld,collision+wlld,0)
 	return p.read_dllt_sensor()-PLLDConfig.resThres
 
-def checkTriggeredSensor(Ab_id,val):
-	if get_triggered_input(Ab_id) == (val): return True
-	else: return False
+def setUp_dllt():
+	p.set_motor_tracking_running(False)
+	if get_triggered_input(AbortID.NormalAbortZ) or get_triggered_input(AbortID.HardZ):
+		clear_abort_config(AbortID.NormalAbortZ)
+		clear_abort_config(AbortID.HardZ)
 
 def set_plld(press=3,col=100,cur=1,thres=2000,freq=510,freq_delay=250,dynamic=False,pAvgSample=10,init=False):#resistance val dibesarkan dulu
 	if not init:

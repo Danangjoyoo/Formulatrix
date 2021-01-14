@@ -2036,7 +2036,7 @@ class mainLLD():
 			self.pressLimit = None
 			self.resThres = c.PLLDConfig.resThres
 			self.resLimit = None
-			self.press_trig = True
+			self.press_trig = False
 			self.res_trig = False
 			self.trigtime_p = 0
 			self.trigtime_r = 0
@@ -2056,6 +2056,12 @@ class mainLLD():
 			self.saturated = False
 			self.t_operation = 0
 			self.TriggeredFirst = None
+
+			def reset(self):
+				self.surfaceFound = False
+				self.press_trig = False
+				self.res_trig = False
+				self.saturated = False
 
 			@staticmethod
 			def set_value(z,p1,p2,r):
@@ -2245,8 +2251,6 @@ class mainLLD():
 				Dry.press_trig = True
 				if c.get_triggered_input(c.AbortID.HardZ) == 1 << c.InputAbort.LiquidLevelSensor:
 					Dry.res_trig = True
-				else:
-					Dry.res_trig = False
 		elif str.lower(lld) == 'wet':
 			if c.get_triggered_input(c.AbortID.HardZ) == 1 << c.InputAbort.LiquidLevelSensor:
 				Wet.res_trig = True
@@ -2285,10 +2289,16 @@ LLD.p2 = 936
 Dry = mainLLD.Operation('DRY')
 Wet = mainLLD.Operation('WET')
 Wet.useDynamic = False
-Wet.press_trig = False
-Wet.res_trig = True
 
 class mainLLT():
+	r1 = 0
+	r2 = 0
+	threshold = None
+
+	@staticmethod
+	def run():
+		mainLLT.findThreshold()
+
 	@staticmethod
 	def findSaturation(z,tip):
 		print 'Find Saturation Parameters...'
@@ -2336,6 +2346,68 @@ class mainLLT():
 		for i in range(samples):
 			print respack[i], timepack[i]"""
 		return res, z
+
+	@staticmethod
+	def findThreshold():
+		if Dry.surfaceFound and Dry.res_trig:
+			align(1,'D7',Dry.zero)
+		else:
+			align(1,'D7',-10)
+			c.move_abs_z(-30,100,200)
+			mainLLD.findSurface(-100)
+		mainLLT.r1,_ = mainLLT.preReading()
+		mainLLT.r2,_ = mainLLT.preReading(C.PrereadingConfig.stepDown)
+
+
+	class Geo():
+		@staticmethod
+		def init():
+			mainLLT.Geo.stop()
+			if not mainLLT.threshold: mainLLT.findThreshold()
+
+		@staticmethod
+		def start():
+			#c.p.set_abort_
+			c.p.set_tracking_limit(True, c.p.chipCalibrationConfig.upperLimit, c.p.chipCalibrationConfig.lowerLimit)
+			c.p.set_motor_tracking_config(
+				c.DLLTConfig.Geo.trackFactor,
+				mainLLT.threshold,
+				c.DLLTConfig.Geo.stem_vel,
+				c.DLLTConfig.stem_acc,
+				c.DLLTConfig.inverted
+				c.DLLTConfig.startVolThres,
+				c.DLLTConfig.colThres,
+				c.DLLTConfig.trackProfile)
+			c.p.set_motor_tracking_running(True)
+
+		@staticmethod
+		def stop():
+			c.p.set_motor_tracking_running(False)
+			if c.get_triggered_input(c.AbortID.NormalAbortZ) or c.get_triggered_input(c.AbortID.HardZ):
+				c.clear_abort_config(c.AbortID.EstopOut)
+				c.clear_abort_config(c.AbortID.NormalAbortZ)
+				c.clear_abort_config(c.AbortID.HardZ)
+
+	class Res():
+		@staticmethod
+		def init():
+			mainLLT.Res.stop()
+			c.p.set_dllt_pid(c.DLLTConfig.Res.kp, c.DLLTConfig.Res.ki, c.DLLTConfig.Res.kd, c.DLLTConfig.Res.samplingTime)
+			c.p.set_dllt_move_profile(c.DLLTConfig.Res.stem_vel, c.DLLTConfig.Res.stem_acc, c.DLLTConfig.Res.inverted)
+
+		@staticmethod
+		def start():
+			c.p.set_dllt_limit(True, PrereadingConfig.dlltMinThres, PrereadingConfig.dlltMaxThres)
+			c.p.start_dllt()
+
+		@staticmethod
+		def stop():
+			c.p.stop_dllt()
+			if c.get_triggered_input(c.AbortID.NormalAbortZ) or c.get_triggered_input(c.AbortID.HardZ):
+				c.clear_abort_config(c.AbortID.EstopOut)
+				c.clear_abort_config(c.AbortID.NormalAbortZ)
+				c.clear_abort_config(c.AbortID.HardZ)
+
 
 class PvR(): # Pressure vs Resistance First Triggered
 	lastTestObj = None
@@ -2521,13 +2593,9 @@ def tip_reciprocate():
 
 				# Dry Phase
 				printb('DRY PHASE..')
-				PvR.preRun(Dry,atm_press,res_init)
 				t1 = time.time()
 				Dry.zero = mainLLD.findSurface(target,lld='dry')
-				PvR.postRun()
 				Dry.t_operation = time.time()-t1
-				printr('First Triggered Sensor on PLLD:', PvR.getLastWinner())
-				print 'Triggered Time.. press: {} | res: {}'.format(Dry.trigtime_p, Dry.trigtime_r)
 				Dry.p1, Dry.p2 = c.p.read_pressure_sensor(0),c.p.read_pressure_sensor(1)
 				Dry.res = c.p.read_dllt_sensor()
 				time.sleep(c.PrereadingConfig.readDelay)

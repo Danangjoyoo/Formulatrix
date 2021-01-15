@@ -1742,6 +1742,7 @@ class WLLDConfig():
 	stem_vel = 15
 	stem_acc = 1000
 	colThres = 40
+	currentThresh = 1.3
 	resThres = 50
 	freq = 510
 	freq_delay = 250/1000.0
@@ -1753,6 +1754,9 @@ class PrereadingConfig():
 	readDelay = 200/1000.0
 	freq = 120
 	freq_delay = 250/1000.0
+	thresMultiplier = 0.25
+	dlltMinAspThres = 200
+	dlltMinDspThres = 200
 	dlltMinThres = -700
 	dlltMaxThres = 700
 

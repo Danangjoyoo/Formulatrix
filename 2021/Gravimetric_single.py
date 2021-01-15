@@ -1977,6 +1977,52 @@ def zz():
 		time.sleep(1)
 
 # PLOTTER
+sensorPlot = False
+def sensorPlotter(start=True,thread=False):
+	global sensorPlot
+	if start:
+		n = 0
+		sensorPlot = True
+		filename = 'Level\plot_sensor_{}.csv'.format(int(time.time()))
+		# movement
+		init_t = time.time()
+		current_t = time.time() - t1
+		before_t = 0
+		init_travel = abs(c.p.get_encoder_position(0))
+		before_travel = 0
+		init_speed = 0
+		current_speed = 0
+		before_speed = 0
+		current_acc = 0
+		before_acc = 0
+		#other sensor
+		col, res, p1, p2 = 0,0,0,0
+		if thread:
+			back_write(wraps(['t,travel,speed,acc,col,res,p1,p2']),filename)
+			while sensorPlot:
+				# movement
+				current_t = round(time.time() - init_t,2)
+				current_travel = abs(c.p.get_encoder_position(0))-init_travel
+				current_speed = (current_travel-before_travel)/(current_t-before_t)
+				current_acc = (current_speed - before_speed)/(current_t-before_t)
+				before_t = current_t
+				before_travel = current_travel
+				before_speed = current_speed
+				before_acc = current_acc
+				# other sensor
+				col = c.p.read_collision_sensor()
+				res = c.p.read_dllt_sensor()
+				p1 = c.p.read_pressure_sensor(0)
+				p2 = c.p.read_pressure_sensor(1)
+				n += 1
+				back_write(wraps(['{},{},{},{},{},{},{},{}'.format(
+					current_t, current_travel, current_speed, current_travel, col, res, p1, p2)]),filename,warn=False)
+		else:
+			thread1 = threading.Thread(target=sensorPlotter,args=(1,1))
+			thread1.start()
+	else:
+		sensorPlot = False
+
 spdPlotter = False
 def speedPlotter(start=True,thread=False):
 	global spdPlotter
@@ -2213,8 +2259,6 @@ class mainLLD():
 
 	@staticmethod
 	def checkResSatur(tip):
-		#filename = 'Level\saturation_check_{}.csv'.format(int(time.time()))
-		#back_write(wraps(['z,res']),filename)
 		z = LLD.zero
 		tipLength = {20:1,200:1,1000:1}
 		maxz = tipLength[tip]
@@ -2222,7 +2266,6 @@ class mainLLD():
 		while z <= maxZ:
 			res = c.p.read_dllt_sensor()
 			zpack.append(z); respack.append(res)
-			#back_write(wraps(['{},{}'.format(z,res)]),filename)
 			z -= 0.5
 			c.p.move_motor_abs(0,z*100,100*100,100*100)
 
@@ -2292,12 +2335,37 @@ Wet.useDynamic = False
 
 class mainLLT():
 	r1 = 0
-	r2 = 0
+	r2asp = 0
+	r2dsp = 0
+	r2diff = 0
 	threshold = None
 
 	@staticmethod
-	def run():
+	def run(operation='asp'):
 		mainLLT.findThreshold()
+		if str.lower(operation) == 'asp':
+			if mainLLT.r2 > mainLLT.r1:
+				mainLLT.threshold = 0.0
+				mainLLT.Geo.init()
+				mainLLT.Geo.start()
+			elif abs(mainLLT.r2 - mainLLT.r1) < c.PrereadingConfig.dlltMinAspThres
+				mainLLT.Geo.init()
+				mainLLT.Geo.start()
+			else:
+				mainLLT.Res.init()
+				mainLLT.Res.start()
+		elif str.lower(operation) == 'dsp':
+			if not mainLLT.r2dsp or not mainLLT.r2asp: mainLLT.r2diff = mainLLT.r2dsp - mainLLT.r2asp
+			if mainLLT.r2 > mainLLT.r1:
+				mainLLT.threshold = 0.0 # to avoid different resistance preread mode n operation
+				mainLLT.Geo.init()
+				mainLLT.Geo.start()
+			elif c.PrereadingConfig.dlltMinDspThres < abs(mainLLT.r2 - mainLLT.r1) and (c.PrereadingConfig.dlltMinThres<mainLLT.r2diff<c.PrereadingConfig.dlltMaxThres):
+				mainLLT.Res.init()
+				mainLLT.Res.start()
+			else:
+				mainLLT.Geo.init()
+				mainLLT.Geo.start()
 
 	@staticmethod
 	def findSaturation(z,tip):
@@ -2333,22 +2401,10 @@ class mainLLT():
 		time.sleep(c.PrereadingConfig.readDelay)
 		res = c.p.read_dllt_sensor()
 		z = c.p.get_motor_pos(0)/100.0
-		"""res = 0
-		respack, timepack = [], []
-		samples = 20
-		t0 = time.time()
-		for i in range(samples):
-			rn = c.p.read_dllt_sensor()
-			res += rn
-			respack.append(rn)
-			timepack.append(round(time.time()-t0,2))
-		res /= samples
-		for i in range(samples):
-			print respack[i], timepack[i]"""
 		return res, z
 
 	@staticmethod
-	def findThreshold():
+	def findThreshold(operation='asp'):
 		if Dry.surfaceFound and Dry.res_trig:
 			align(1,'D7',Dry.zero)
 		else:
@@ -2356,8 +2412,10 @@ class mainLLT():
 			c.move_abs_z(-30,100,200)
 			mainLLD.findSurface(-100)
 		mainLLT.r1,_ = mainLLT.preReading()
-		mainLLT.r2,_ = mainLLT.preReading(C.PrereadingConfig.stepDown)
-
+		r2,_ = mainLLT.preReading(C.PrereadingConfig.stepDown)
+		mainLLT.threshold = (r2 - mainLLT.r1)*c.PrereadingConfig.thresMultiplier
+		if   str.lower(operation) == 'asp': mainLLT.r2asp = r2
+		elif str.lower(operation) == 'dsp': mainLLT.r2dsp = r2
 
 	class Geo():
 		@staticmethod
@@ -2367,7 +2425,7 @@ class mainLLT():
 
 		@staticmethod
 		def start():
-			#c.p.set_abort_
+			c.set_collision_abort(c.DLLTConfig.Geo.colThres)
 			c.p.set_tracking_limit(True, c.p.chipCalibrationConfig.upperLimit, c.p.chipCalibrationConfig.lowerLimit)
 			c.p.set_motor_tracking_config(
 				c.DLLTConfig.Geo.trackFactor,
@@ -2397,6 +2455,7 @@ class mainLLT():
 
 		@staticmethod
 		def start():
+			c.set_collision_abort(c.DLLTConfig.Res.colThres)
 			c.p.set_dllt_limit(True, PrereadingConfig.dlltMinThres, PrereadingConfig.dlltMaxThres)
 			c.p.start_dllt()
 

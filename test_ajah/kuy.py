@@ -5,5 +5,5 @@ print("anjaaay")
 # yuhuuu update iiinihh
 # lagi yohhh
 # coooooookkkkkk
-# asoeeee tenan
-# oiiii
+# asooo pooll github cok
+# awasdasdasd

@@ -4,7 +4,7 @@ import time, os
 class FloFeature_Database():
     def __init__(self, filename):
         self.filename = 'test_ajah/'+filename
-        self.g = Github('26e290cf0fc1c988053f91cacfed6af02149f57d')
+        self.g = Github('380d7591e84adeacbdafcbd3d57d4128d8ad7735')
         self.all_repos = self.g.get_user().get_repos()
         self.branchName = 'main'
         self.taracuss_repo = None
@@ -38,5 +38,5 @@ for i, file in enumerate(filelist):
     print("Storing data to the cloud")
     f = open(file, 'r')
     contents = f.read()
-    filePack[i].create("Testing", contents)
+    filePack[i].update("Testing", contents)
     print("Finished", file)

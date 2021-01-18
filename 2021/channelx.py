@@ -903,7 +903,8 @@ def start_pipetting(vol,flow,flowmin=0,tip=200,timeout=120):
 	if air_phase1:
 		move_rel_z(5,20,1000,0)
 	
-	timeout=20 #override khusus gravimetric
+	timeout = 2 #khusus llt test
+	#timeout=20 #override khusus gravimetric
 	#timeout=60 #override khusus platereader 
 
 	t2 = 0
@@ -925,8 +926,8 @@ def start_pipetting(vol,flow,flowmin=0,tip=200,timeout=120):
 				t2 = t1
 				print int(time.time()-start), "timeout at", timeout
 	#return round((pipetting_time-start),3)
-	
-	p.stop_dllt()
+	#p.stop_dllt()
+
 def cek_p2_average():
 	global No_liquid
 	global air_transfer_by_p2
@@ -1218,7 +1219,7 @@ extra_disp=[0,0]
 
 def abort_flow():
 	p.abort_flow_func()
-	p.stop_dllt()
+	#p.stop_dllt()
 
 def test_extra_vol_asp2(flows,volume=100):
 	global extra_p1_off_asp

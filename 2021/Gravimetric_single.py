@@ -5,7 +5,7 @@ import time, math
 from tabulate import tabulate
 import pandas as pd
 from pandas import read_csv
-import threading, winsound, keyboard as kb, string, numpy as np, colorama as cora
+import threading, winsound, keyboard as kb, string, numpy as np, colorama as cora, random as rd
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 
@@ -1994,12 +1994,11 @@ class Plotter():
 	show_p2 = True
 
 	@staticmethod
-	def plot(start=True,thread=False):
+	def plot_logging(start=True,thread=False):
 		if start:
 			n = 0
 			Plotter.getData = True
-			#filename = 'Level\plot_sensor_{}.csv'.format(int(time.time()))
-			filename = 'Level\plot_sensor.csv'
+			filename = 'Level\plot_sensor_{}.csv'.format(int(time.time()))
 			pd.DataFrame([[0,0,0,0,0,0,0,0]],columns=['t','travel','vel','acc','col','res','p1','p2']).to_csv(filename, index=False)
 			Plotter.filename = filename
 			# movement
@@ -2016,7 +2015,7 @@ class Plotter():
 			#other sensor
 			col, res, p1, p2 = 0,0,0,0
 			if thread:
-				#back_write(wraps(['t,travel,vel,acc,col,res,p1,p2']),filename)
+				back_write(wraps(['t,travel,vel,acc,col,res,p1,p2']),filename)
 				time.sleep(0.1)
 				while Plotter.getData:
 					# movement
@@ -2037,68 +2036,124 @@ class Plotter():
 					back_write(wraps(['{},{},{},{},{},{},{},{}'.format(
 						current_t, current_travel, current_vel, current_acc, col, res, p1, p2)]),filename,warn=False)
 			else:
-				thread1 = threading.Thread(target=Plotter.plot,args=(1,1))
+				thread1 = threading.Thread(target=Plotter.plot_logging,args=(1,1))
 				thread1.start()
 		else:
 			Plotter.getData = False
 
-	@staticmethod
-	def updateGraph(i):
-	    now = round(time.time()-Plotter.init_t,2)
-	    df = pd.read_csv(Plotter.filename)
-	    if len(df) > Plotter.lastLen:
-	        Plotter.lastLen = len(df)
-	        t, travel, vel, acc, col, res, p1, p2 = df.loc[Plotter.lastLen - 1]
-	        Plotter.t.append(t)
-	        Plotter.travel.append(travel)
-	        Plotter.vel.append(vel)
-	        Plotter.acc.append(acc)
-	        Plotter.col.append(col)
-	        Plotter.res.append(res)
-	        Plotter.p1.append(p1)
-	        Plotter.p2.append(p2)
-	        print 't', Plotter.t
-	    plt.cla()
-	    if Plotter.show_travel: plt.plot(Plotter.t, Plotter.travel, label='Travel')
-	    if Plotter.show_vel: plt.plot(Plotter.t, Plotter.vel, label='Vel')
-	    if Plotter.show_acc: plt.plot(Plotter.t, Plotter.show_acc, label='Acc')
-	    if Plotter.show_col: plt.plot(Plotter.t, Plotter.show_col, label='Col')
-	    if Plotter.show_res: plt.plot(Plotter.t, Plotter.show_res, label='Res')
-	    if Plotter.show_p1: plt.plot(Plotter.t, Plotter.show_p1, label='P1')
-	    if Plotter.show_p2: plt.plot(Plotter.t, Plotter.show_p2, label='P2')
-	
-	@staticmethod
-	def run():
-		ani = FuncAnimation(plt.gcf(), Plotter.updateGraph, interval=50)
-		plt.tight_layout()
-		plt.show()
-		#reset the class
-		Plotter.getData = False
-		lastLen = 0
-		init_t = 0
-		filename = None
-		Plotter.t,Plotter.travel,Plotter.vel,Plotter.acc,Plotter.col,Plotter.res,Plotter.p1,Plotter.p2 = [], [], [], [], [], [], [], []
-		Plotter.show_travel = True
-		Plotter.show_vel = True
-		Plotter.show_acc = True
-		Plotter.show_col = True
-		Plotter.show_res = True
-		Plotter.show_p1 = True
-		Plotter.show_p2 = True
+	#==================== REALTIME PLOTTER ======================
+	plotStat = False
+	init_t = time.time()
+	init_travel = 0
+	avgTime = []
+	x = []
+	limit = 30
+	init = True
+	current_t = 0
+	before_t = 0
+	init_travel = 0
+	before_travel = 0
+	current_vel = 0
+	before_vel = 0
+	current_acc = 0
+	before_acc = 0
+	varPack = {
+		'travel': [[], 'travel'	, False],
+		'vel'	: [[], 'vel'	, False],
+		'acc'	: [[], 'acc'	, False],
+		'col'	: [[], 'col'	, False],
+		'res'	: [[], 'res'	, False],
+		'p1'	: [[], 'p1'		, False],
+		'p2'	: [[], 'p2'		, False],
+	}
 
 	@staticmethod
-	def show(**s):
-		if 'travel' in s: Plotter.show_travel = s['travel']
-		if 'vel' in s: Plotter.show_vel = s['vel']
-		if 'acc' in s: Plotter.show_acc = s['acc']
-		if 'col' in s: Plotter.show_col = s['col']
-		if 'res' in s: Plotter.show_res = s['res']
-		if 'p1' in s: Plotter.show_p1 = s['p1']
-		if 'p2' in s: Plotter.show_p2 = s['p2']
-		Plotter.plot(True)
-		Plotter.run()
-		#thread1 = threading.Thread(target=Plotter.run)
-		#thread1.start()
+	def reset_realtime():
+		Plotter.plotStat = False
+		Plotter.init_t = time.time()
+		Plotter.init_travel = 0
+		Plotter.avgTime = []
+		Plotter.x = []
+		Plotter.limit = 20
+		Plotter.init = True
+		Plotter.varPack = {
+	        'travel': [[], 'travel'	, False],
+	        'vel'	: [[], 'vel'	, False],
+	        'acc'	: [[], 'acc'	, False],
+	        'col'	: [[], 'col'	, False],
+	        'res'	: [[], 'res'	, False],
+	        'p1'	: [[], 'p1'		, False],
+	        'p2'	: [[], 'p2'		, False],
+	    }
+
+	@staticmethod
+	def plot_realtime(**hide):
+		if hide:
+			Plotter.reset_realtime()
+			container, label, showStat = 0, 1, 2
+			if 'limit' in hide: Plotter.limit = hide['limit']
+			for var in Plotter.varPack:
+				if Plotter.varPack[var][label] in hide:
+					Plotter.varPack[var][showStat] = hide[Plotter.varPack[var][label]]
+			ani = FuncAnimation(plt.gcf(), Plotter.autoUpdate, interval=15)
+			plt.show()
+		else:
+			print "Input sensor that you want to plot! (Ex: p2=True, p1= True"
+
+	@staticmethod
+	def autoUpdate(i):
+		t1 = time.time()
+		# Initialization =======================
+		container, label, showStat = 0, 1, 2
+		if Plotter.init:
+			Plotter.init_t = time.time()
+			Plotter.current_t = time.time() - Plotter.init_t
+			Plotter.before_t = 0
+			Plotter.init_travel = abs(c.p.get_encoder_position(0))
+			Plotter.before_travel = 0
+			Plotter.current_vel = 0
+			Plotter.before_vel = 0
+			Plotter.current_acc = 0
+			Plotter.before_acc = 0
+			Plotter.init = False
+			time.sleep(0.1)
+		# set limit
+		if len(Plotter.x) >= Plotter.limit:
+			Plotter.x.pop(0)
+			for var in Plotter.varPack: Plotter.varPack[var][container].pop(0)
+		# movement
+		Plotter.current_t = round(time.time() - Plotter.init_t, 2)					
+		Plotter.current_travel = abs(c.p.get_encoder_position(0))-Plotter.init_travel
+		Plotter.current_vel = (Plotter.current_travel-Plotter.before_travel)/(Plotter.current_t-Plotter.before_t)
+		Plotter.current_acc = (Plotter.current_vel - Plotter.before_vel)/(Plotter.current_t-Plotter.before_t)
+		Plotter.before_t = Plotter.current_t
+		Plotter.before_travel = Plotter.current_travel
+		Plotter.before_vel = Plotter.current_vel
+		Plotter.before_acc = Plotter.current_acc
+		# other sensor
+		col = c.p.read_collision_sensor()
+		res = c.p.read_dllt_sensor()
+		p1 = c.p.read_pressure_sensor(0)
+		p2 = c.p.read_pressure_sensor(1)
+		# ADD DATA
+		Plotter.x.append(Plotter.current_t)
+		Plotter.varPack['travel'][container].append(Plotter.current_travel)
+		Plotter.varPack['vel'	][container].append(Plotter.current_vel)
+		Plotter.varPack['acc'	][container].append(Plotter.current_acc)
+		Plotter.varPack['col'	][container].append(col)
+		Plotter.varPack['res'	][container].append(res)
+		Plotter.varPack['p1'	][container].append(p1)
+		Plotter.varPack['p2'	][container].append(p2)
+
+		# start to plot
+		plt.cla()
+		for var in Plotter.varPack:
+			if Plotter.varPack[var][showStat]:
+				plt.plot(Plotter.x, Plotter.varPack[var][container], linewidth=1, label=Plotter.varPack[var][label])
+		plt.legend(loc='upper left')
+        
+        # end of plotting =======================
+        #print("Elapsed:", round(time.time() - t1, 4), "ms")
 
 spdPlotter = False
 def speedPlotter(start=True,thread=False):

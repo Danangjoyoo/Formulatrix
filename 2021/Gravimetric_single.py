@@ -6,6 +6,8 @@ from tabulate import tabulate
 import pandas as pd
 from pandas import read_csv
 import threading, winsound, keyboard as kb, string, numpy as np, colorama as cora
+import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
 
 
 w_eng_value = 4.5454545454
@@ -93,7 +95,7 @@ def align_plld (rack,well,target=-40,depth=-85,evade=-20,tare=1,dllt=True,init=F
 	deck.wait_moves([0,1])
 	c.move_abs_z(target,100,750) # manual move
 	print('manual')
-	LLD.pressThres, LLD.useDynamic = c.set_plld(LLD.pressThres,init=init)
+	c.set_plld(LLD.pressThres,init=init)
 	print('auto')
 	c.move_abs_z(depth,stem_vel,stem_acc) # max move but will stop when plld triggered"
 	
@@ -107,6 +109,7 @@ def align_plld (rack,well,target=-40,depth=-85,evade=-20,tare=1,dllt=True,init=F
 	if sensor == 2 or sensor ==256 or sensor== 258:
 		result = True
 		if dllt:
+			print 'dllt start'
 			c.DLLT_start()
 	else:
 		result = False
@@ -125,15 +128,14 @@ def align_wlld (rack,well,target=-40,depth=-100,evade=-40):
 	c.set_wlld_abort(200)
 	deck.wait_moves([0,1])
 	c.move_abs_z(target,30,750)
-	c.move_abs_z(depth,c.PLLD.stem_vel,c.PLLD.stem_acc)
+	c.move_abs_z(depth,c.PLLDConfig.stem_vel,c.PLLDConfig.stem_acc)
 	pos =  c.get_motor_pos()
 	sensor = c.get_triggered_input(1)
 	print 'sensor wlld', sensor
 	c.clear_motor_fault()
 	c.clear_abort_config(1)
 	if sensor == 256:
-		result = True
-		_, LLD.resThres, LLD.freq = c.DLLT_start()
+		result = Truec.DLLT_start()
 	else:
 		result = False
 		c.move_rel_z(3,50,750)
@@ -1043,7 +1045,7 @@ class AsyncWrite(threading.Thread):
 		f.write(self.text) 
 		f.close()  
 		#time.sleep(2) 
-		print "Finished background file write to"+str(self.out)+'\r',
+		#print "Finished background file write to"+str(self.out)+'\r',
 
 def back_write(message,filename,warn=True): 
 	global backgroundmessage
@@ -1977,51 +1979,126 @@ def zz():
 		time.sleep(1)
 
 # PLOTTER
-sensorPlot = False
-def sensorPlotter(start=True,thread=False):
-	global sensorPlot
-	if start:
-		n = 0
-		sensorPlot = True
-		filename = 'Level\plot_sensor_{}.csv'.format(int(time.time()))
-		# movement
-		init_t = time.time()
-		current_t = time.time() - t1
-		before_t = 0
-		init_travel = abs(c.p.get_encoder_position(0))
-		before_travel = 0
-		init_speed = 0
-		current_speed = 0
-		before_speed = 0
-		current_acc = 0
-		before_acc = 0
-		#other sensor
-		col, res, p1, p2 = 0,0,0,0
-		if thread:
-			back_write(wraps(['t,travel,speed,acc,col,res,p1,p2']),filename)
-			while sensorPlot:
-				# movement
-				current_t = round(time.time() - init_t,2)
-				current_travel = abs(c.p.get_encoder_position(0))-init_travel
-				current_speed = (current_travel-before_travel)/(current_t-before_t)
-				current_acc = (current_speed - before_speed)/(current_t-before_t)
-				before_t = current_t
-				before_travel = current_travel
-				before_speed = current_speed
-				before_acc = current_acc
-				# other sensor
-				col = c.p.read_collision_sensor()
-				res = c.p.read_dllt_sensor()
-				p1 = c.p.read_pressure_sensor(0)
-				p2 = c.p.read_pressure_sensor(1)
-				n += 1
-				back_write(wraps(['{},{},{},{},{},{},{},{}'.format(
-					current_t, current_travel, current_speed, current_travel, col, res, p1, p2)]),filename,warn=False)
+class Plotter():
+	getData = False
+	lastLen = 0
+	init_t = 0
+	filename = None
+	t,travel,vel,acc,col,res,p1,p2 = [], [], [], [], [], [], [], []
+	show_travel = True
+	show_vel = True
+	show_acc = True
+	show_col = True
+	show_res = True
+	show_p1 = True
+	show_p2 = True
+
+	@staticmethod
+	def plot(start=True,thread=False):
+		if start:
+			n = 0
+			Plotter.getData = True
+			#filename = 'Level\plot_sensor_{}.csv'.format(int(time.time()))
+			filename = 'Level\plot_sensor.csv'
+			pd.DataFrame([[0,0,0,0,0,0,0,0]],columns=['t','travel','vel','acc','col','res','p1','p2']).to_csv(filename, index=False)
+			Plotter.filename = filename
+			# movement
+			init_t = time.time()
+			Plotter.init_t = init_t
+			current_t = time.time() - init_t
+			before_t = 0
+			init_travel = abs(c.p.get_encoder_position(0))
+			before_travel = 0
+			current_vel = 0
+			before_vel = 0
+			current_acc = 0
+			before_acc = 0
+			#other sensor
+			col, res, p1, p2 = 0,0,0,0
+			if thread:
+				#back_write(wraps(['t,travel,vel,acc,col,res,p1,p2']),filename)
+				time.sleep(0.1)
+				while Plotter.getData:
+					# movement
+					current_t = round(time.time() - init_t,2)					
+					current_travel = abs(c.p.get_encoder_position(0))-init_travel
+					current_vel = (current_travel-before_travel)/(current_t-before_t)
+					current_acc = (current_vel - before_vel)/(current_t-before_t)
+					before_t = current_t
+					before_travel = current_travel
+					before_vel = current_vel
+					before_acc = current_acc
+					# other sensor
+					col = c.p.read_collision_sensor()
+					res = c.p.read_dllt_sensor()
+					p1 = c.p.read_pressure_sensor(0)
+					p2 = c.p.read_pressure_sensor(1)
+					n += 1
+					back_write(wraps(['{},{},{},{},{},{},{},{}'.format(
+						current_t, current_travel, current_vel, current_acc, col, res, p1, p2)]),filename,warn=False)
+			else:
+				thread1 = threading.Thread(target=Plotter.plot,args=(1,1))
+				thread1.start()
 		else:
-			thread1 = threading.Thread(target=sensorPlotter,args=(1,1))
-			thread1.start()
-	else:
-		sensorPlot = False
+			Plotter.getData = False
+
+	@staticmethod
+	def updateGraph(i):
+	    now = round(time.time()-Plotter.init_t,2)
+	    df = pd.read_csv(Plotter.filename)
+	    if len(df) > Plotter.lastLen:
+	        Plotter.lastLen = len(df)
+	        t, travel, vel, acc, col, res, p1, p2 = df.loc[Plotter.lastLen - 1]
+	        Plotter.t.append(t)
+	        Plotter.travel.append(travel)
+	        Plotter.vel.append(vel)
+	        Plotter.acc.append(acc)
+	        Plotter.col.append(col)
+	        Plotter.res.append(res)
+	        Plotter.p1.append(p1)
+	        Plotter.p2.append(p2)
+	        print 't', Plotter.t
+	    plt.cla()
+	    if Plotter.show_travel: plt.plot(Plotter.t, Plotter.travel, label='Travel')
+	    if Plotter.show_vel: plt.plot(Plotter.t, Plotter.vel, label='Vel')
+	    if Plotter.show_acc: plt.plot(Plotter.t, Plotter.show_acc, label='Acc')
+	    if Plotter.show_col: plt.plot(Plotter.t, Plotter.show_col, label='Col')
+	    if Plotter.show_res: plt.plot(Plotter.t, Plotter.show_res, label='Res')
+	    if Plotter.show_p1: plt.plot(Plotter.t, Plotter.show_p1, label='P1')
+	    if Plotter.show_p2: plt.plot(Plotter.t, Plotter.show_p2, label='P2')
+	
+	@staticmethod
+	def run():
+		ani = FuncAnimation(plt.gcf(), Plotter.updateGraph, interval=50)
+		plt.tight_layout()
+		plt.show()
+		#reset the class
+		Plotter.getData = False
+		lastLen = 0
+		init_t = 0
+		filename = None
+		Plotter.t,Plotter.travel,Plotter.vel,Plotter.acc,Plotter.col,Plotter.res,Plotter.p1,Plotter.p2 = [], [], [], [], [], [], [], []
+		Plotter.show_travel = True
+		Plotter.show_vel = True
+		Plotter.show_acc = True
+		Plotter.show_col = True
+		Plotter.show_res = True
+		Plotter.show_p1 = True
+		Plotter.show_p2 = True
+
+	@staticmethod
+	def show(**s):
+		if 'travel' in s: Plotter.show_travel = s['travel']
+		if 'vel' in s: Plotter.show_vel = s['vel']
+		if 'acc' in s: Plotter.show_acc = s['acc']
+		if 'col' in s: Plotter.show_col = s['col']
+		if 'res' in s: Plotter.show_res = s['res']
+		if 'p1' in s: Plotter.show_p1 = s['p1']
+		if 'p2' in s: Plotter.show_p2 = s['p2']
+		Plotter.plot(True)
+		Plotter.run()
+		#thread1 = threading.Thread(target=Plotter.run)
+		#thread1.start()
 
 spdPlotter = False
 def speedPlotter(start=True,thread=False):
@@ -2103,25 +2180,27 @@ class mainLLD():
 			self.t_operation = 0
 			self.TriggeredFirst = None
 
-			def reset(self):
-				self.surfaceFound = False
-				self.press_trig = False
-				self.res_trig = False
-				self.saturated = False
+		def reset(self):
+			self.surfaceFound = False
+			self.press_trig = False
+			self.pressLimit = None
+			self.res_trig = False
+			self.resLimit = None
+			self.saturated = False
 
-			@staticmethod
-			def set_value(z,p1,p2,r):
-				LLD.zero = z
-				LLD.p1 = p1
-				LLD.p2 = p2
-				LLD.res = r
+		@staticmethod
+		def set_value(z,p1,p2,r):
+			LLD.zero = z
+			LLD.p1 = p1
+			LLD.p2 = p2
+			LLD.res = r
 
-			@staticmethod
-			def get_value(text=False):
-				if not text:
-					return round(LLD.zero,3), round(LLD.p1,3), round(LLD.p2,3), LLD.res
-				else:
-					return 'Z: {}\tP1: {}\tP2: {}\tR: {}'.format(round(LLD.zero,3), round(LLD.p1,3), round(LLD.p2,3), LLD.res)
+		@staticmethod
+		def get_value(text=False):
+			if not text:
+				return round(LLD.zero,3), round(LLD.p1,3), round(LLD.p2,3), LLD.res
+			else:
+				return 'Z: {}\tP1: {}\tP2: {}\tR: {}'.format(round(LLD.zero,3), round(LLD.p1,3), round(LLD.p2,3), LLD.res)
 
 	@staticmethod
 	def goZero(manual=False,flow=3,dllt=True,tip=200):
@@ -2318,12 +2397,15 @@ class mainLLD():
 		if str.lower(lld) == 'dry':
 			if Dry.pressThres < c.p.read_pressure_sensor(1):
 				LLD.surfaceFound = True
+				Dry.surfaceFound = True
 				printy('Surface found at Dry')
 		elif str.lower(lld) == 'wet':
 			if Wet.resLimit > c.p.read_dllt_sensor():
 				LLD.surfaceFound = True
+				Wet.surfaceFound = True
 				printb('Surface found at Wet')
 		return zero
+lld = mainLLD()
 
 LLD = mainLLD.Operation('LLD')
 LLD.zero = -90
@@ -2339,33 +2421,61 @@ class mainLLT():
 	r2dsp = 0
 	r2diff = 0
 	threshold = None
+	lltMode = None
 
 	@staticmethod
 	def run(operation='asp'):
-		mainLLT.findThreshold()
+		LLD.reset()
+		mainLLT.findThreshold(operation=operation)
 		if str.lower(operation) == 'asp':
-			if mainLLT.r2 > mainLLT.r1:
+			if mainLLT.r2asp > mainLLT.r1:
+				printg('**Geometric LLT Mode**')
 				mainLLT.threshold = 0.0
-				mainLLT.Geo.init()
+				mainLLT.Geo.init(operation)
 				mainLLT.Geo.start()
-			elif abs(mainLLT.r2 - mainLLT.r1) < c.PrereadingConfig.dlltMinAspThres
-				mainLLT.Geo.init()
+			elif abs(mainLLT.r2asp - mainLLT.r1) < c.PrereadingConfig.dlltMinAspThres:
+				printg('**Geometric LLT Mode**')
+				mainLLT.Geo.init(operation)
 				mainLLT.Geo.start()
 			else:
-				mainLLT.Res.init()
+				printg('**Resistance LLT Mode**')
+				mainLLT.Res.init(operation)
 				mainLLT.Res.start()
 		elif str.lower(operation) == 'dsp':
 			if not mainLLT.r2dsp or not mainLLT.r2asp: mainLLT.r2diff = mainLLT.r2dsp - mainLLT.r2asp
 			if mainLLT.r2 > mainLLT.r1:
+				printg('**Geometric LLT Mode**')
 				mainLLT.threshold = 0.0 # to avoid different resistance preread mode n operation
-				mainLLT.Geo.init()
+				mainLLT.Geo.init(operation)
 				mainLLT.Geo.start()
 			elif c.PrereadingConfig.dlltMinDspThres < abs(mainLLT.r2 - mainLLT.r1) and (c.PrereadingConfig.dlltMinThres<mainLLT.r2diff<c.PrereadingConfig.dlltMaxThres):
-				mainLLT.Res.init()
+				printg('**Resistance LLT Mode**')
+				mainLLT.Res.init(operation)
 				mainLLT.Res.start()
 			else:
-				mainLLT.Geo.init()
+				printg('**Geometric LLT Mode**')
+				mainLLT.Geo.init(operation)
 				mainLLT.Geo.start()
+
+	@staticmethod
+	def terminate():
+		if mainLLT.lltMode:
+			if mainLLT.lltMode == 'geo':
+				mainLLT.Geo.stop()
+			elif mainLLT.lltMode == 'res':
+				mainLLT.Res.stop()
+			print 'LLT Terminated'
+		else:
+			print 'LLT Unterminated'
+
+	@staticmethod
+	def check():
+		printg('DLLT limit:');print c.p.get_dllt_limit()
+		printg('DLLT Move Profile:'); print c.p.get_dllt_move_profile()
+		printg('DLLT pid:'); print c.p.get_dllt_pid()
+		printg('Tracking Limit:'); print c.p.get_tracking_limit()
+		printg('Tracking Config:'); print c.p.get_motor_tracking_config()
+		printg('Tracking Status:'); print c.p.get_motor_tracking_status()
 
 	@staticmethod
 	def findSaturation(z,tip):
@@ -2405,68 +2515,84 @@ class mainLLT():
 
 	@staticmethod
 	def findThreshold(operation='asp'):
-		if Dry.surfaceFound and Dry.res_trig:
-			align(1,'D7',Dry.zero)
+		print 'Finding LLT Threshold..'
+		if LLD.surfaceFound:
+			align(1,'D7',LLD.zero)
 		else:
 			align(1,'D7',-10)
 			c.move_abs_z(-30,100,200)
-			mainLLD.findSurface(-100)
+			LLD.zero = mainLLD.findSurface(-100)
 		mainLLT.r1,_ = mainLLT.preReading()
-		r2,_ = mainLLT.preReading(C.PrereadingConfig.stepDown)
+		r2,_ = mainLLT.preReading(-c.PrereadingConfig.stepDown)
 		mainLLT.threshold = (r2 - mainLLT.r1)*c.PrereadingConfig.thresMultiplier
 		if   str.lower(operation) == 'asp': mainLLT.r2asp = r2
 		elif str.lower(operation) == 'dsp': mainLLT.r2dsp = r2
+		print 'r1: {} | r2: {} | Thres: {}'.format(mainLLT.r1, r2, mainLLT.threshold)
 
 	class Geo():
 		@staticmethod
-		def init():
+		def init(operation='asp'):
+			mainLLT.lltMode = 'geo'
 			mainLLT.Geo.stop()
-			if not mainLLT.threshold: mainLLT.findThreshold()
+			if not mainLLT.threshold: mainLLT.findThreshold(operation=operation)
+			print 'Geometric LLT initialized..'
 
 		@staticmethod
 		def start():
+			print 'Geometric LLT started..'
 			c.set_collision_abort(c.DLLTConfig.Geo.colThres)
-			c.p.set_tracking_limit(True, c.p.chipCalibrationConfig.upperLimit, c.p.chipCalibrationConfig.lowerLimit)
+			c.p.set_tracking_limit(True, c.chipCalibrationConfig.upperLimit*c.stem_eng, c.chipCalibrationConfig.lowerLimit*c.stem_eng)
 			c.p.set_motor_tracking_config(
 				c.DLLTConfig.Geo.trackFactor,
 				mainLLT.threshold,
 				c.DLLTConfig.Geo.stem_vel,
-				c.DLLTConfig.stem_acc,
-				c.DLLTConfig.inverted
-				c.DLLTConfig.startVolThres,
-				c.DLLTConfig.colThres,
-				c.DLLTConfig.trackProfile)
+				c.DLLTConfig.Geo.stem_acc,
+				c.DLLTConfig.Geo.inverted,
+				c.DLLTConfig.Geo.startVolThres,
+				1)
 			c.p.set_motor_tracking_running(True)
 
 		@staticmethod
 		def stop():
+			print 'Geometric LLT Stopped..'
 			c.p.set_motor_tracking_running(False)
 			if c.get_triggered_input(c.AbortID.NormalAbortZ) or c.get_triggered_input(c.AbortID.HardZ):
+				print 'Motion Config Cleared..'
 				c.clear_abort_config(c.AbortID.EstopOut)
 				c.clear_abort_config(c.AbortID.NormalAbortZ)
 				c.clear_abort_config(c.AbortID.HardZ)
+				c.clear_motor()
+				c.clear_motor_fault()
 
 	class Res():
 		@staticmethod
-		def init():
+		def init(operation='asp'):
+			mainLLT.lltMode = 'res'
+			if not mainLLT.threshold: mainLLT.findThreshold(operation=operation)
 			mainLLT.Res.stop()
 			c.p.set_dllt_pid(c.DLLTConfig.Res.kp, c.DLLTConfig.Res.ki, c.DLLTConfig.Res.kd, c.DLLTConfig.Res.samplingTime)
-			c.p.set_dllt_move_profile(c.DLLTConfig.Res.stem_vel, c.DLLTConfig.Res.stem_acc, c.DLLTConfig.Res.inverted)
+			c.p.set_dllt_move_profile(c.DLLTConfig.Res.stem_vel*c.stem_eng, c.DLLTConfig.Res.stem_acc*c.stem_eng, c.DLLTConfig.Res.inverted)
+			print 'Resistance LLT initialized..'
 
 		@staticmethod
 		def start():
+			print 'Resistance LLT Started..'
 			c.set_collision_abort(c.DLLTConfig.Res.colThres)
-			c.p.set_dllt_limit(True, PrereadingConfig.dlltMinThres, PrereadingConfig.dlltMaxThres)
-			c.p.start_dllt()
+			#c.p.set_dllt_limit(True, c.PrereadingConfig.dlltMinThres, c.PrereadingConfig.dlltMaxThres)
+			c.p.start_dllt(mainLLT.threshold, c.DLLTConfig.Res.stepSize, c.DLLTConfig.Res.bigStep)
 
 		@staticmethod
 		def stop():
+			print 'Resistance LLT Stopped..'
 			c.p.stop_dllt()
 			if c.get_triggered_input(c.AbortID.NormalAbortZ) or c.get_triggered_input(c.AbortID.HardZ):
+				print 'Motion Config Cleared..'
 				c.clear_abort_config(c.AbortID.EstopOut)
 				c.clear_abort_config(c.AbortID.NormalAbortZ)
 				c.clear_abort_config(c.AbortID.HardZ)
-
+				c.clear_motor()
+				c.clear_motor_fault()
+llt = mainLLT()
 
 class PvR(): # Pressure vs Resistance First Triggered
 	lastTestObj = None
@@ -2646,6 +2772,8 @@ def tip_reciprocate():
 				zeros = LLD.zero
 				LLD.surfaceFound = True
 			printg('Zero Surface Found! Cleaning up the tip...')
+			Dry.reset()
+			Wet.reset()
 			if LLD.surfaceFound:
 				wawik(1,source,target-10)
 				#################### DRY DRY DRY DRY DRY #####################################

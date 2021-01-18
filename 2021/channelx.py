@@ -1763,7 +1763,7 @@ class PrereadingConfig():
 class DLLTConfig():
 	class Res:
 		stepSize = 0.5
-		bigStep = 2
+		bigStep = 2.0
 		kp = 1.5
 		ki = 0
 		kd = 10
@@ -1786,7 +1786,7 @@ class PipettingConfig():
 	NonPipettingResponseMS = 60
 
 class chipCalibrationConfig():
-	upperlimit = 9.0
+	upperLimit = 9.0
 	lowerLimit = -148.0
 	colCompressTolerance = 4.0
 
@@ -2415,8 +2415,8 @@ def DLLT_start(reverse=0,freq=510):
 			#cancel
 			threshold = -250
 			print("\n  Geometric LLT Start")
-	#else:
-		#print("\n  Resistnce LLT Start")
+	else:
+		print("\n  Resistnce LLT Start")
 	if reverse:
 		threshold = 1000
 		print 'run reverse========================='

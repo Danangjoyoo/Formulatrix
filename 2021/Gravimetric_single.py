@@ -2064,8 +2064,7 @@ class Plotter():
 		'col'	: [[], 'col'	, False],
 		'res'	: [[], 'res'	, False],
 		'p1'	: [[], 'p1'		, False],
-		'p2'	: [[], 'p2'		, False],
-	}
+		'p2'	: [[], 'p2'		, False] }
 
 	@staticmethod
 	def reset_realtime():

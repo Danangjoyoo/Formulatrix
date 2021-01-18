@@ -1,0 +1,6 @@
+DLLT Workflow:
+1. Prereading -> get LLT mode
+2. 	if LLTmode Geometric:
+		DLLT Non-Ionic : GeometricLLT
+	else:
+		DLLT Ionic : ResistanceLLT

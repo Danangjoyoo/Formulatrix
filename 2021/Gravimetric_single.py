@@ -1201,7 +1201,7 @@ def nimbang_1ml(*args):
 
 		vols = [vol]*iter
 		#volume = vol_calibrate(vols,tip)
-		volume,operation = volScaling(vols, tip,'scale')
+		volume,operation = volScaling(vols, tip, 'scale')
 
 		initWeight, finalWeight = 0,0
 		string_pushData = ""
@@ -1978,6 +1978,22 @@ def zz():
 			print weight[i]," - \t", sensed[i]
 		time.sleep(1)
 
+# THREADING
+class Background():
+	func = None
+	params = None
+	stat = True
+	start = False
+	thread1 = None
+	@staticmethod
+	def run(*args):
+		list_args = list(args)
+		func = list_args.pop(0)
+		params = tuple([i for i in list_args])
+		thread1 = threading.Thread(target=func, args=params)
+		thread1.start()
+
+
 # PLOTTER
 class Plotter():
 	getData = False
@@ -2404,7 +2420,9 @@ class mainLLD():
 
 	@staticmethod
 	def findSurface(depth=-80,lld='dry',lowSpeed=False):
-		print('FindSurface Started.. lld: {} | HighAccuracy: {}'.format(lld, lowSpeed))
+		print('FindSurface Started.. lld: {} | HighAccuracy: {} | depth: {}'.format(lld, lowSpeed, depth))
+		c.clear_estop()
+		c.clear_motor_fault()
 		if lowSpeed:
 			flow, flow_delay = 15,250
 			stem_vel,stem_acc = 2,10
@@ -2431,6 +2449,8 @@ class mainLLD():
 			if c.get_triggered_input(c.AbortID.HardZ) == 1 << c.InputAbort.LiquidLevelSensor:
 				Wet.res_trig = True
 		print 'done move',  c.p.get_motor_pos(0)
+		postPress = c.p.read_pressure_sensor(1)
+		postRes = c.p.read_dllt_sensor()
 		# after the motor stopped, set every process done
 		c.abort_flow()
 		Average_done = True
@@ -2446,10 +2466,10 @@ class mainLLD():
 		c.clear_abort_config(c.AbortID.ValveClose)
 		zero = c.p.get_motor_pos(0)/100.0
 		print 'Checking surfaceFound..'
-		print 'pressureCheck:\t',Dry.pressThres, c.p.read_pressure_sensor(1)
-		print 'resCheck:\t',init_res- c.PLLDConfig.resThres, c.p.read_dllt_sensor()
+		print 'pressureCheck:\t', Dry.pressLimit, postPress
+		print 'resCheck:\t',init_res- c.PLLDConfig.resThres, postRes
 		if str.lower(lld) == 'dry':
-			if Dry.pressThres < c.p.read_pressure_sensor(1):
+			if Dry.pressLimit <= c.p.read_pressure_sensor(1):
 				LLD.surfaceFound = True
 				Dry.surfaceFound = True
 				printy('Surface found at Dry')
@@ -2459,6 +2479,7 @@ class mainLLD():
 				Wet.surfaceFound = True
 				printb('Surface found at Wet')
 		return zero
+
 lld = mainLLD()
 
 LLD = mainLLD.Operation('LLD')
@@ -2476,6 +2497,7 @@ class mainLLT():
 	r2diff = 0
 	threshold = None
 	lltMode = None
+	testStat = False
 
 	@staticmethod
 	def run(operation='asp'):
@@ -2570,18 +2592,48 @@ class mainLLT():
 	@staticmethod
 	def findThreshold(operation='asp'):
 		print 'Finding LLT Threshold..'
-		if LLD.surfaceFound:
+		"""if LLD.surfaceFound:
 			align(1,'D7',LLD.zero)
 		else:
 			align(1,'D7',-10)
 			c.move_abs_z(-30,100,200)
-			LLD.zero = mainLLD.findSurface(-100)
+			LLD.zero = mainLLD.findSurface(-100)"""
+		if LLD.surfaceFound:
+			c.move_abs_z(LLD.zero,100,200)
+		else:
+			c.move_abs_z(-30,100,200)
+			LLD.zero = mainLLD.findSurface(-130)
 		mainLLT.r1,_ = mainLLT.preReading()
 		r2,_ = mainLLT.preReading(-c.PrereadingConfig.stepDown)
 		mainLLT.threshold = (r2 - mainLLT.r1)*c.PrereadingConfig.thresMultiplier
 		if   str.lower(operation) == 'asp': mainLLT.r2asp = r2
 		elif str.lower(operation) == 'dsp': mainLLT.r2dsp = r2
 		print 'r1: {} | r2: {} | Thres: {}'.format(mainLLT.r1, r2, mainLLT.threshold)
+
+	@staticmethod
+	def test_setUp(tip, volume,iters=1):
+		printy("LLT Pipetting Test Started..")
+		targets = {20: -130, 200: 120}
+		vols = vol_calibrate([volume], tip); vol = vols[0]
+		mainLLT.run()
+		mainLLT.testStat = True
+		for i in range(iters):
+			time.sleep(2)
+			aspirate(vol, tip)
+			time.sleep(2)
+			dispense(vol, tip)
+		time.sleep(2)
+		mainLLT.terminate()
+		c.move_rel_z(15,100,200)
+		mainLLT.testStat = False
+		printy("LLT Pipetting Test Finished..")
+
+	@staticmethod
+	def pipettingTest(tip, volume,iters=1):
+		thread1 = threading.Thread(target=mainLLT.test_setUp,args=(tip,volume,iters))
+		thread1.start()
+		while not mainLLT.testStat: time.sleep(0.1)
+		Plotter.plot_realtime(p1=True,p2=True,res=True,travel=True,vel=True)
 
 	class Geo():
 		@staticmethod
@@ -2615,7 +2667,7 @@ class mainLLT():
 				c.clear_abort_config(c.AbortID.EstopOut)
 				c.clear_abort_config(c.AbortID.NormalAbortZ)
 				c.clear_abort_config(c.AbortID.HardZ)
-				c.clear_motor()
+				c.clear_estop()
 				c.clear_motor_fault()
 
 	class Res():
@@ -2644,8 +2696,9 @@ class mainLLT():
 				c.clear_abort_config(c.AbortID.EstopOut)
 				c.clear_abort_config(c.AbortID.NormalAbortZ)
 				c.clear_abort_config(c.AbortID.HardZ)
-				c.clear_motor()
+				c.clear_estop()
 				c.clear_motor_fault()
+
 llt = mainLLT()
 
 class PvR(): # Pressure vs Resistance First Triggered
@@ -2730,6 +2783,7 @@ class PvR(): # Pressure vs Resistance First Triggered
 		else:
 			print 'No PvR have ran'
 
+# LLD TEST
 def tip_reciprocate():
 	printy('!!! PUT THE WATER BUCKET ON RACK 1-D7 !!!')
 	inputs1 = avoidInpErr.reInput('Tip, Iter, Pickpos >> ')
@@ -2742,7 +2796,7 @@ def tip_reciprocate():
 	# z saat pindah labware biar ga nabrak timbangan	
 	evades 			= {20	:3,		200		:3,		1000	:3}	
 	# aspirate lowest pos	
-	targets 		= {20 	:-95, 	200 	:-84, 	1000	:-50}
+	targets 		= {20 	:-100, 	200 	:-90, 	1000	:-70}
 	safes 			= {20	:-55,	200		:-35,	1000	:3}
 
 	deck.setZeroDeckMode(tip)
@@ -2828,12 +2882,13 @@ def tip_reciprocate():
 			printg('Zero Surface Found! Cleaning up the tip...')
 			Dry.reset()
 			Wet.reset()
+			LLD.reset()
 			if LLD.surfaceFound:
 				wawik(1,source,target-10)
 				#################### DRY DRY DRY DRY DRY #####################################
 
 				# Dry Phase
-				printb('DRY PHASE..')
+				printy('DRY PHASE..')
 				t1 = time.time()
 				Dry.zero = mainLLD.findSurface(target,lld='dry')
 				Dry.t_operation = time.time()-t1
@@ -2896,7 +2951,7 @@ def tip_reciprocate():
 
 				#R3 = -2mm
 				Wet.r3_res,_ = mainLLT.preReading(-c.PrereadingConfig.stepDown)
-				printg('Level 3..',Wet.r3_res)
+				printg('Level 3..',Wet.r3_res, _)
 
 				#R4 = -3mm
 				Wet.r4_res,_ = mainLLT.preReading(-c.PrereadingConfig.stepDown)
@@ -2920,7 +2975,7 @@ def tip_reciprocate():
 				# DRY DATA PUSH
 				n += 1
 				wrapper = '{}'
-				for i in range(43-1): wrapper += ',{}' 
+				for i in range(41-1): wrapper += ',{}' 
 				back_write(wraps([wrapper.format(
 					x, n,
 					dates,
@@ -2967,7 +3022,7 @@ def tip_reciprocate():
 				# WET DATA PUSH
 				n += 1
 				wrapper = '{}'
-				for i in range(43-1): wrapper += ',{}' 
+				for i in range(41-1): wrapper += ',{}' 
 				back_write(wraps([wrapper.format(
 					x, n,
 					dates,
@@ -3017,7 +3072,6 @@ def tip_reciprocate():
 			eject()
 			eject()
 	align(0, next_pickpos, pick_target+50)
-
 
 
 # ALWAYS RE-SETUP EVERY TIME CHANNEL IS CHANGED

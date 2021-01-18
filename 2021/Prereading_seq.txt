@@ -1,0 +1,41 @@
+Execute:
+
+AspiratePrereading:
+1. initPos = GetPos
+2. setFreq + Delay
+3. SetAbortCollision
+4. r1 = readDLLT
+5. MoveRelative(z,vel,acc)
+6. waitEOM
+7. readDelay
+8. r2 = readDLLT
+9. threshold = (r2-r1)*thresMultiplier -> prereading.json
+10. findAspirateLLTmode
+	if r2 > r1:
+		threshold = 0.0
+		lltMode : Geometric
+	elif abs(r2-r1) < DLLTminAspThres: 
+		lltMode: Geometric
+	else: 
+		lltMode: Resistance
+11. FinalPos = getPos
+
+DispensePrereading:
+1. initPos = GetPos
+2. setFreq + Delay
+3. SetAbortCollision
+4. r1 = readDLLT
+5. MoveRelative(z,vel,acc)
+6. waitEOM
+7. readDelay
+8. r2 = readDLLT
+9. threshold = (r2-r1)*thresMultiplier -> prereading.json
+10. findAspirateLLTmode
+	if r2 > r1:
+		threshold = 0.0
+		lltMode : Geometric
+	elif abs(r2-r1) > DLLTminAspThres and : 
+		lltMode: Geometric
+	else: 
+		lltMode: Resistance
+11. FinalPos = getPos

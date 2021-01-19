@@ -2056,13 +2056,13 @@ class Plotter():
 	current_acc = 0
 	before_acc = 0
 	varPack = {
-		'travel': [[], 'travel'	, False],
-		'vel'	: [[], 'vel'	, False],
-		'acc'	: [[], 'acc'	, False],
-		'col'	: [[], 'col'	, False],
-		'res'	: [[], 'res'	, False],
-		'p1'	: [[], 'p1'		, False],
-		'p2'	: [[], 'p2'		, False] }
+		'travel': [[], 'travel'	, False, 1],
+		'vel'	: [[], 'vel'	, False, 1],
+		'acc'	: [[], 'acc'	, False, 1],
+		'col'	: [[], 'col'	, False, 1],
+		'res'	: [[], 'res'	, False, 1],
+		'p1'	: [[], 'p1'		, False, 1],
+		'p2'	: [[], 'p2'		, False, 1] }
 
 	@staticmethod
 	def run(*args): #function, param1, param2, dll
@@ -2092,15 +2092,22 @@ class Plotter():
 		Plotter.x = []
 		Plotter.limit = 20
 		Plotter.init = True
-		Plotter.varPack = {
-	        'travel': [[], 'travel'	, False],
-	        'vel'	: [[], 'vel'	, False],
-	        'acc'	: [[], 'acc'	, False],
-	        'col'	: [[], 'col'	, False],
-	        'res'	: [[], 'res'	, False],
-	        'p1'	: [[], 'p1'		, False],
-	        'p2'	: [[], 'p2'		, False],
-	    }
+		varPack = {
+			'travel': [[], 'travel'	, False, 1],
+			'vel'	: [[], 'vel'	, False, 1],
+			'acc'	: [[], 'acc'	, False, 1],
+			'col'	: [[], 'col'	, False, 1],
+			'res'	: [[], 'res'	, False, 1],
+			'p1'	: [[], 'p1'		, False, 1],
+			'p2'	: [[], 'p2'		, False, 1]
+		}
+
+	@staticmethod
+	def setScale(**vars):
+		container, label, showStat, scale = 0, 1, 2, 3
+		for var in vars:
+			if var in Plotter.varPack:
+				Plotter.varPack[var][scale] = vars[var]
 
 	@staticmethod
 	def plot_realtime(**hide):
@@ -2153,13 +2160,13 @@ class Plotter():
 		p2 = c.p.read_pressure_sensor(1)
 		# ADD DATA
 		Plotter.x.append(Plotter.current_t)
-		Plotter.varPack['travel'][container].append(Plotter.current_travel)
-		Plotter.varPack['vel'	][container].append(Plotter.current_vel)
-		Plotter.varPack['acc'	][container].append(Plotter.current_acc)
-		Plotter.varPack['col'	][container].append(col)
-		Plotter.varPack['res'	][container].append(res*0.4)
-		Plotter.varPack['p1'	][container].append(p1)
-		Plotter.varPack['p2'	][container].append(p2)
+		Plotter.varPack['travel'][container].append(Plotter.current_travel*Plotter.varPack['travel'][scale])
+		Plotter.varPack['vel'	][container].append(Plotter.current_vel*Plotter.varPack['vel'][scale])
+		Plotter.varPack['acc'	][container].append(Plotter.current_acc*Plotter.varPack['acc'][scale])
+		Plotter.varPack['col'	][container].append(col*Plotter.varPack['col'][scale])
+		Plotter.varPack['res'	][container].append(res*Plotter.varPack['res'][scale])
+		Plotter.varPack['p1'	][container].append(p1*Plotter.varPack['p1'][scale])
+		Plotter.varPack['p2'	][container].append(p2*Plotter.varPack['p2'][scale])
 
 		# start to plot
 		plt.cla()

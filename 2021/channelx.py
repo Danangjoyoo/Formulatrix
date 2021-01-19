@@ -903,7 +903,7 @@ def start_pipetting(vol,flow,flowmin=0,tip=200,timeout=120):
 	if air_phase1:
 		move_rel_z(5,20,1000,0)
 	
-	timeout = 2 #khusus llt test
+	timeout = 5 #khusus llt test
 	#timeout=20 #override khusus gravimetric
 	#timeout=60 #override khusus platereader 
 

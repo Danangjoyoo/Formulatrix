@@ -277,7 +277,7 @@ def setZeroDeckMode(mode):
     elif mode == 200:
         zero_deck = [[265.5,102],[163.5,104.5],[62.2,104]] # UNTUK CADDY P200
     elif mode == 1000:
-        zero_deck = [[264,103.7],[163.5,103.5],[62.2,103.5]] # UNTUK CADDY P1000
+        zero_deck = [[265,103.7],[163.5,103.5],[62.2,103.5]] # UNTUK CADDY P1000
     row0 = arange(zero_deck[0][0],zero_deck[0][0]-72,-8.9)
     col0 = arange(zero_deck[0][1],zero_deck[0][1]-108,-9)
     row1 = arange(zero_deck[1][0],zero_deck[1][0]-72,-9)

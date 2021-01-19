@@ -310,7 +310,7 @@ def picktip(pos='None',target=P200_picktip_z,safe=-10,userinput=0,nextPosOnly=Fa
 				if n > 1:
 					eject()
 					pos = deck.wellname[deck.wellname.index(pos)+1]
-				align(0,pos,P200_picktip_z+15,P200_picktip_z+15)
+				align(0,pos,target+15,target+15)
 				status = c.picktip(target,50,2,10)
 				n+=1
 				lastpos = pos
@@ -534,6 +534,7 @@ def PLLD_response(input=32):
 
 def wawik(rack=0,source='A1',target=-100,Deck=2,well='B3'):
 	z = c.p.get_motor_pos(0)/100.0
+	c.move_abs_z(0,100,100)
 	align(Deck,well,-40)
 	c.set_collision_abort(30)
 	c.move_abs_z(target,20,100)
@@ -548,6 +549,7 @@ def wawik(rack=0,source='A1',target=-100,Deck=2,well='B3'):
 	c.clear_abort_config(1)
 	c.clear_motor_fault()
 	c.move_rel_z(3,5,100,0)
+	c.move_abs_z(0,100,100)
 	align(rack,source,z+10)
 
 def dllt_linearity():
@@ -1104,7 +1106,9 @@ def manualPicktip(pos='None',target=0,evade=0,defaultStat=True):
 			nextpos = deck.wellname[0]
 		#align(0,pos,target+30)
 		#time.sleep(0.5)
-		align(0,pos,target,evade)
+		align(0,pos,target+20,evade)
+		time.sleep(1)
+		c.move_abs_z(target,80,1000)
 		time.sleep(0.1)
 		#c.move_abs_z(target,100,100)
 		#time.sleep(0.5)
@@ -2316,9 +2320,9 @@ class mainLLD():
 			c.abort_flow()
 			retract_press(10,100)
 			c.clear_motor_fault()
-			mainLLD.goZero(manual=False)
+			mainLLD.goZero(manual=False,tip=tip)
 		else:
-			printy('Auto Tuning GoZERO')
+			printy('Auto Find GoZERO')
 			if LLD.res > r_init:
 				r_init = LLD.res
 			if abs(p2_init-LLD.p2) > 2:
@@ -2425,7 +2429,7 @@ class mainLLD():
 		c.clear_motor_fault()
 		if lowSpeed:
 			flow, flow_delay = 15,250
-			stem_vel,stem_acc = 2,10
+			stem_vel,stem_acc = 2,5
 		else:
 			flow = c.PLLDConfig.flow
 			flow_delay = c.PLLDConfig.flow_delay
@@ -2433,18 +2437,21 @@ class mainLLD():
 			stem_acc = c.PLLDConfig.stem_acc
 		depth -= c.chipCalibrationConfig.colCompressTolerance
 		if str.lower(lld) == 'dry':
+			Dry.reset()
 			c.p.set_stop_decel(0,c.PLLDConfig.decel,0)
 			Dry.pressLimit = c.setUp_plld(lowSpeed=lowSpeed)
 		elif str.lower(lld) == 'wet':
+			Wet.reset()
 			Wet.resLimit = c.setUp_wlld()
 		init_res = c.p.read_dllt_sensor()
 		print 'move', c.p.get_motor_pos(0)
 		c.move_abs_z(depth,stem_vel,stem_acc) # max move but will stop when plld triggered"
 		if str.lower(lld) == 'dry':
+			print('Trigger check:',c.get_triggered_input(c.AbortID.NormalAbortZ))
 			if c.get_triggered_input(c.AbortID.NormalAbortZ) == 1 << c.InputAbort.PressureSensor2:
 				Dry.press_trig = True
-				if c.get_triggered_input(c.AbortID.HardZ) == 1 << c.InputAbort.LiquidLevelSensor:
-					Dry.res_trig = True
+			if c.get_triggered_input(c.AbortID.HardZ) == 1 << c.InputAbort.LiquidLevelSensor:
+				Dry.res_trig = True
 		elif str.lower(lld) == 'wet':
 			if c.get_triggered_input(c.AbortID.HardZ) == 1 << c.InputAbort.LiquidLevelSensor:
 				Wet.res_trig = True
@@ -2459,6 +2466,7 @@ class mainLLD():
 		Count_volume_done = True
 		Pipetting_done = True
 		# clear all abort
+		print 'press trig:',Dry.press_trig, Dry.res_trig
 		pos =  c.get_motor_pos()
 		c.clear_motor_fault()
 		c.clear_abort_config(c.AbortID.NormalAbortZ)
@@ -2466,18 +2474,28 @@ class mainLLD():
 		c.clear_abort_config(c.AbortID.ValveClose)
 		zero = c.p.get_motor_pos(0)/100.0
 		print 'Checking surfaceFound..'
-		print 'pressureCheck:\t', Dry.pressLimit, postPress
-		print 'resCheck:\t',init_res- c.PLLDConfig.resThres, postRes
+		print 'pressureCheck:\t limit: {}\t | postpress: {}'.format(Dry.pressLimit, postPress)
+		print 'resCheck:\t limit: {}\t\t | postRes: {}'.format(init_res- c.PLLDConfig.resThres, postRes)
 		if str.lower(lld) == 'dry':
-			if Dry.pressLimit <= c.p.read_pressure_sensor(1):
+			if Dry.pressLimit <= postPress:
 				LLD.surfaceFound = True
 				Dry.surfaceFound = True
 				printy('Surface found at Dry')
+			else:
+				printy("Pressure Limit isn't reached at Dry")
+			if init_res - c.PLLDConfig.resThres >= postRes:
+				LLD.surfaceFound = True
+				Dry.surfaceFound = True
+				printy('Resistance Triggered at Dry')
+				#print 'PressLimit: {} | Current P2: {}'.format(Dry.pressLimit, c.p.read_pressure_sensor(1))
 		elif str.lower(lld) == 'wet':
-			if Wet.resLimit > c.p.read_dllt_sensor():
+			if Wet.res_trig:
 				LLD.surfaceFound = True
 				Wet.surfaceFound = True
 				printb('Surface found at Wet')
+			else:
+				printy("Resistance Limit isn't reached at Wet")
+				#print 'ResLimit: {} | Current Res: {}'.format(Wet.resLimit, c.p.read_dllt_sensor())
 		return zero
 
 lld = mainLLD()
@@ -2561,6 +2579,8 @@ class mainLLT():
 					200:40,
 					1000:80}
 		maxZ = z-tipLength[tip]
+		if tip == 1000:
+			maxZ = -135
 		zpack, respack, decreasePack = [0],[0],[0]
 		saturated = False
 		n = 0
@@ -2792,12 +2812,12 @@ def tip_reciprocate():
 	pickpos = inputs1.split(',')[2]
 
 	# z picktip
-	pick_targets 	= {20	:-134, 	200		:-125, 	1000	:-127}	
+	pick_targets 	= {20	:-134, 	200		:-125, 	1000	:-117}	
 	# z saat pindah labware biar ga nabrak timbangan	
-	evades 			= {20	:3,		200		:3,		1000	:3}	
+	evades 			= {20	:3,		200		:3,		1000	:0}	
 	# aspirate lowest pos	
-	targets 		= {20 	:-100, 	200 	:-90, 	1000	:-70}
-	safes 			= {20	:-55,	200		:-35,	1000	:3}
+	targets 		= {20 	:-110, 	200 	:-100, 	1000	:-60}
+	safes 			= {20	:-55,	200		:-35,	1000	:0}
 
 	deck.setZeroDeckMode(tip)
 	next_pickpos = pickpos
@@ -2854,6 +2874,7 @@ def tip_reciprocate():
 	c.move_abs_z(-10,200,500)
 
 	for x in range(iters):
+		LLD.reset()
 		t_tot1 = time.time()
 		c.tare_pressure(); atm_press = c.ATM_pressure
 		dates = time.strftime('%Y/%m/%d %H:%M:%S', time.localtime(time.time()))
@@ -2872,17 +2893,17 @@ def tip_reciprocate():
 			print 'initRes:',res_init,'| p1_init:',p1_init,'| p2_init:',atm_press
 			align(1,source,target+15,safe)
 			zeros = mainLLD.findSurface(target,lld='dry',lowSpeed=True)
-			if c.p.read_dllt_sensor() < res_init - Dry.resThres:
-				LLD.res_trig = True
-			if LLD.res_trig:
-				printr('Resistance triggered! Pressure Zero Surface Fail, Trying GoZERO...')
-				mainLLD.goZero()
-				zeros = LLD.zero
-				LLD.surfaceFound = True
-			printg('Zero Surface Found! Cleaning up the tip...')
+			if tip != 1000:
+				if c.p.read_dllt_sensor() < res_init - Dry.resThres:
+					LLD.res_trig = True
+				if LLD.res_trig:
+					printr('Resistance triggered! Pressure Zero Surface Fail, Trying GoZERO...')
+					mainLLD.goZero()
+					zeros = LLD.zero
+					LLD.surfaceFound = True
+				printg('Zero Surface Found! Cleaning up the tip...')
 			Dry.reset()
 			Wet.reset()
-			LLD.reset()
 			if LLD.surfaceFound:
 				wawik(1,source,target-10)
 				#################### DRY DRY DRY DRY DRY #####################################
@@ -3068,6 +3089,7 @@ def tip_reciprocate():
 
 			printg('Eject Phase..')
 			# Eject phase
+			c.move_abs_z(0,100,100)
 			align(0,ejectpos,pick_target+10,pick_target+85)
 			eject()
 			eject()

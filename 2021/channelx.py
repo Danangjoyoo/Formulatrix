@@ -649,9 +649,12 @@ def home_z():
 		#print p.get_encoder_position(0)
 
 def move_abs_z(abs,velc,acc,wait=1):
-
 	global move_done
 	move_done = False
+	if abs > 0:
+		abs = 0
+	elif abs < -135:
+		abs = -135
 	pos = p.get_motor_pos(0)/stem_eng
 	upper = pos+2
 	lower = pos-2
@@ -666,6 +669,8 @@ def move_abs_z(abs,velc,acc,wait=1):
 			print 'wait {}'.format(n)+'\r',
 			n+=1
 			time.sleep(0.1)
+			if n > 300:
+				move_done = True
 	return True
 
 def move_rel_z(rel,velc,acc,wait=1):
@@ -1913,6 +1918,24 @@ def set_wlld_abort(thres):
 	current = 1 <<InputAbort.CurrentMotorZ
 	wlld = 1 << InputAbort.LiquidLevelSensor
 	p.set_abort_config(abort_id,0,current+collision+wlld,collision+wlld,0)
+
+def check_triggered_input(id):
+	inputPack ={
+		1<<0 : 'PressureSensor1',
+		1<<1 : 'PressureSensor2',
+		1<<2 : 'CollisionEstop',
+		1<<3 : 'CollisionTouch',
+		1<<4 : 'WLLDs',
+		1<<5 : 'EStop',
+		1<<6 : 'Touchoff',
+		1<<7 : 'CurrentMotorZ',
+		1<<8 : 'LiquidLevelSensor',
+		1<<9 : 'LiquidBreachDetection'
+	}
+	if get_triggered_input(id) in inputPack:
+		return inputPack[get_triggered_input(id)]
+	else:
+		return None
 
 def get_triggered_input(id):
 	return p.get_triggered_inputs(id)

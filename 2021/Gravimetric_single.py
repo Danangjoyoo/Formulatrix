@@ -1982,22 +1982,6 @@ def zz():
 			print weight[i]," - \t", sensed[i]
 		time.sleep(1)
 
-# THREADING
-class Background():
-	func = None
-	params = None
-	stat = True
-	start = False
-	thread1 = None
-	@staticmethod
-	def run(*args):
-		list_args = list(args)
-		func = list_args.pop(0)
-		params = tuple([i for i in list_args])
-		thread1 = threading.Thread(target=func, args=params)
-		thread1.start()
-
-
 # PLOTTER
 class Plotter():
 	getData = False
@@ -2005,13 +1989,6 @@ class Plotter():
 	init_t = 0
 	filename = None
 	t,travel,vel,acc,col,res,p1,p2 = [], [], [], [], [], [], [], []
-	show_travel = True
-	show_vel = True
-	show_acc = True
-	show_col = True
-	show_res = True
-	show_p1 = True
-	show_p2 = True
 
 	@staticmethod
 	def plot_logging(start=True,thread=False):
@@ -2063,6 +2040,7 @@ class Plotter():
 
 	#==================== REALTIME PLOTTER ======================
 	plotStat = False
+	thread1 = None
 	init_t = time.time()
 	init_travel = 0
 	avgTime = []
@@ -2091,14 +2069,23 @@ class Plotter():
 		newArgs = list(args)
 		func = newArgs.pop(0)
 		params = tuple(newArgs)
-		thread1 = threading.Thread(target=func,args=params)
-		thread1.start()
+		Plotter.thread1 = threading.Thread(target=func,args=params)
+		Plotter.thread1.start()
 		time.sleep(0.1)
-		Plotter.plot_realtime(p1=True,p2=True,res=True,vel=True)
+		Plotter.plot_realtime(p1=True,p2=True,res=True)
+
+	@staticmethod
+	def raiseProcess():
+		if Plotter.thread1 != None:
+			printy('Raising the background process to the foregound! Check at Terminal/Console/CMD!')
+			Plotter.thread1.join()
+		else:
+			print('Background is unregistered!')
 
 	@staticmethod
 	def reset_realtime():
 		Plotter.plotStat = False
+		Plotter.thread1 = None
 		Plotter.init_t = time.time()
 		Plotter.init_travel = 0
 		Plotter.avgTime = []
@@ -2127,7 +2114,7 @@ class Plotter():
 			ani = FuncAnimation(plt.gcf(), Plotter.autoUpdate, interval=15)
 			plt.show()
 		else:
-			print "Input sensor that you want to plot! (Ex: p2=True, p1= True"
+			print "Input sensor that you want to plot! (Ex: p2=True, p1= True)"
 
 	@staticmethod
 	def autoUpdate(i):
@@ -2170,7 +2157,7 @@ class Plotter():
 		Plotter.varPack['vel'	][container].append(Plotter.current_vel)
 		Plotter.varPack['acc'	][container].append(Plotter.current_acc)
 		Plotter.varPack['col'	][container].append(col)
-		Plotter.varPack['res'	][container].append(res)
+		Plotter.varPack['res'	][container].append(res*0.4)
 		Plotter.varPack['p1'	][container].append(p1)
 		Plotter.varPack['p2'	][container].append(p2)
 
@@ -2263,6 +2250,7 @@ class mainLLD():
 			self.saturated = False
 			self.t_operation = 0
 			self.TriggeredFirst = None
+			self.lowSpeed_flow = 15
 
 		def reset(self):
 			self.surfaceFound = False
@@ -2421,24 +2409,12 @@ class mainLLD():
 		c.abort_flow()
 
 	@staticmethod
-	def checkResSatur(tip):
-		z = LLD.zero
-		tipLength = {20:1,200:1,1000:1}
-		maxz = tipLength[tip]
-		zpack,respack = [], []
-		while z <= maxZ:
-			res = c.p.read_dllt_sensor()
-			zpack.append(z); respack.append(res)
-			z -= 0.5
-			c.p.move_motor_abs(0,z*100,100*100,100*100)
-
-	@staticmethod
 	def findSurface(depth=-80,lld='dry',lowSpeed=False):
 		print('FindSurface Started.. lld: {} | HighAccuracy: {} | depth: {}'.format(lld, lowSpeed, depth))
 		c.clear_estop()
 		c.clear_motor_fault()
 		if lowSpeed:
-			flow, flow_delay = 15,250
+			flow, flow_delay = LLD.lowSpeed_flow, 250
 			stem_vel,stem_acc = 2,5
 		else:
 			flow = c.PLLDConfig.flow
@@ -2456,18 +2432,21 @@ class mainLLD():
 		init_res = c.p.read_dllt_sensor()
 		print 'move', c.p.get_motor_pos(0)
 		c.move_abs_z(depth,stem_vel,stem_acc) # max move but will stop when plld triggered"
+		postPress = c.p.read_pressure_sensor(1)
+		postRes = c.p.read_dllt_sensor()
 		if str.lower(lld) == 'dry':
-			print('Trigger check:',c.get_triggered_input(c.AbortID.NormalAbortZ))
-			if c.get_triggered_input(c.AbortID.NormalAbortZ) == 1 << c.InputAbort.PressureSensor2:
-				Dry.press_trig = True
-			if c.get_triggered_input(c.AbortID.HardZ) == 1 << c.InputAbort.LiquidLevelSensor:
-				Dry.res_trig = True
+			printr('Trigger check: NormalZ: {} | HardZ: {}'.format(c.check_triggered_input(c.AbortID.NormalAbortZ), c.check_triggered_input(c.AbortID.HardZ)))
+			if not lowSpeed:
+				if c.get_triggered_input(c.AbortID.NormalAbortZ) == 1 << c.InputAbort.PressureSensor2:
+					Dry.press_trig = True
+				if c.get_triggered_input(c.AbortID.HardZ) == 1 << c.InputAbort.LiquidLevelSensor:
+					Dry.res_trig = True
+			else:
+				if c.get_triggered_input(c.AbortID.HardZ): Dry.press_trig = True
 		elif str.lower(lld) == 'wet':
 			if c.get_triggered_input(c.AbortID.HardZ) == 1 << c.InputAbort.LiquidLevelSensor:
 				Wet.res_trig = True
 		print 'done move',  c.p.get_motor_pos(0)
-		postPress = c.p.read_pressure_sensor(1)
-		postRes = c.p.read_dllt_sensor()
 		# after the motor stopped, set every process done
 		c.abort_flow()
 		Average_done = True
@@ -2487,19 +2466,19 @@ class mainLLD():
 		print 'pressureCheck:\t limit: {}\t | postpress: {}'.format(Dry.pressLimit, postPress)
 		print 'resCheck:\t limit: {}\t\t | postRes: {}'.format(init_res- c.PLLDConfig.resThres, postRes)
 		if str.lower(lld) == 'dry':
-			if Dry.pressLimit <= postPress:
+			if Dry.pressLimit <= postPress or Dry.press_trig:
 				LLD.surfaceFound = True
 				Dry.surfaceFound = True
 				printy('Surface found at Dry')
 			else:
 				printy("Pressure Limit isn't reached at Dry")
-			if init_res - c.PLLDConfig.resThres >= postRes:
+			if init_res - c.PLLDConfig.resThres >= postRes or Dry.res_trig:
 				LLD.surfaceFound = True
 				Dry.surfaceFound = True
 				printy('Resistance Triggered at Dry')
 				#print 'PressLimit: {} | Current P2: {}'.format(Dry.pressLimit, c.p.read_pressure_sensor(1))
 		elif str.lower(lld) == 'wet':
-			if Wet.res_trig:
+			if init_res - c.PLLDConfig.resThres >= postRes or Wet.res_trig:
 				LLD.surfaceFound = True
 				Wet.surfaceFound = True
 				printb('Surface found at Wet')
@@ -2507,6 +2486,386 @@ class mainLLD():
 				printy("Resistance Limit isn't reached at Wet")
 				#print 'ResLimit: {} | Current Res: {}'.format(Wet.resLimit, c.p.read_dllt_sensor())
 		return zero
+
+	# LLD TEST / TIP RECIPROCATING
+	class test():
+		runStat = True
+
+		@staticmethod
+		def stopBackgroundTest():
+			printr('STOPPING LLD BACKGROUND TEST... PLEASE WAIT UNTILL THE LAST PROCESS IS DONE!\t\t\t')
+			mainLLD.test.runStat = False
+
+		@staticmethod
+		def baseline(*kw):
+			mainLLD.test.runStat = True
+			tip, iters, pickpos = None, None, None
+			if not kw:
+				printy('!!! PUT THE WATER BUCKET ON RACK 1-D7 !!!')
+				inputs1 = avoidInpErr.reInput('Tip, Iter, Pickpos >> ')
+				tip = int(inputs1.split(',')[0])
+				iters = int(inputs1.split(',')[1])
+				pickpos = inputs1.split(',')[2]
+			else:
+				tip = kw[0]
+				iters = kw[1]
+				pickpos = kw[2]
+
+			# z picktip
+			pick_targets 	= {20	:-134, 	200		:-125, 	1000	:-117}	
+			# z saat pindah labware biar ga nabrak timbangan	
+			evades 			= {20	:3,		200		:3,		1000	:0}	
+			# aspirate lowest pos	
+			targets 		= {20 	:-110, 	200 	:-100, 	1000	:-60}
+			safes 			= {20	:-55,	200		:-35,	1000	:0}
+
+			deck.setZeroDeckMode(tip)
+			next_pickpos = pickpos
+			pick_target = pick_targets[tip]
+			evade = evades[tip]
+			target = targets[tip]
+			safe = safes[tip]
+			source = 'D7'
+			zeros = 0
+			n = 0
+
+			filename = 'Level\LLD_P'+str(tip)+ '_' + time.strftime('%Y%m%d%H%M%S', time.localtime(time.time())) + '.csv'
+			back_write(wraps([
+				'X'+','+'n'			+','+
+				'Date'				+','+
+				'Tip'				+','+
+				'Zero Surface'		+','+
+				'p1_init'			+','+
+				'AtmPress(p2_init)' +','+
+				'Initial Res'		+','+
+				'Veloc'				+','+
+				'Accel'				+','+
+				'Flow'				+','+
+				'Type'				+','+
+				'UseDynamic'		+','+
+				'Press Threshold'	+','+
+				'Press Limit'		+','+
+				'Res Threshold'		+','+
+				'Res Limit'			+','+
+				'Press Trig'		+','+
+				'Res Trig'			+','+
+				'LLT Res Freq'		+','+
+				'ZeroRes'			+','+
+				'dRes(init-zero)'	+','+
+				'Depth'				+','+
+				'P1'				+','+
+				'P2'				+','+
+				'dP1(init-zero)'	+','+
+				'dP2(init-zero)'	+','+
+				'Pre Read Freq'		+','+
+				'R1'				+','+
+				'R2'				+','+
+				'R3'				+','+
+				'R4'				+','+
+				'R5'				+','+
+				'R6 at ExpectedSatZ'+','+
+				'ExpectedSatZ'		+','+
+				'Saturated Res'		+','+
+				'Saturated Z'		+','+
+				'Saturated Depth'	+','+
+				'FindSatZLimit'		+','+
+				'Saturated'			+','+
+				'Opr Time ms'		+','+
+				'FullCycle ms']),filename)
+			c.move_abs_z(-10,200,500)
+
+			for x in range(iters):
+				if mainLLD.test.runStat: 
+					LLD.reset()
+					t_tot1 = time.time()
+					c.tare_pressure(); atm_press = c.ATM_pressure
+					dates = time.strftime('%Y/%m/%d %H:%M:%S', time.localtime(time.time()))
+					if tip == 1000:
+						picktipstat = manualPicktip(next_pickpos, pick_target)
+					else:
+						picktipstat = picktip(next_pickpos,pick_target,safe)
+					pickpos 		= next_pickpos
+					next_pickpos 	= picktipstat[1]
+					ejectpos		= picktipstat[2]
+					if picktipstat[0]:
+						next_pickpos
+						p1_init = c.p.read_pressure_sensor(0)
+						res_init = c.p.read_dllt_sensor()
+						printg('Finding Zero Surface...')
+						print 'initRes:',res_init,'| p1_init:',p1_init,'| p2_init:',atm_press
+						align(1,source,target+15,safe)
+						zeros = mainLLD.findSurface(target,lld='dry',lowSpeed=True)
+						if tip != 1000:
+							if c.p.read_dllt_sensor() < res_init - Dry.resThres:
+								LLD.res_trig = True
+							if LLD.res_trig:
+								printr('Resistance triggered! Pressure Zero Surface Fail, Trying GoZERO...')
+								mainLLD.goZero()
+								zeros = LLD.zero
+								LLD.surfaceFound = True
+							printg('Zero Surface Found! Cleaning up the tip...')
+						Dry.reset()
+						Wet.reset()
+						if LLD.surfaceFound:
+							wawik(1,source,target-10)
+							#################### DRY DRY DRY DRY DRY #####################################
+
+							# Dry Phase
+							printy('DRY PHASE..')
+							t1 = time.time()
+							Dry.zero = mainLLD.findSurface(target,lld='dry')
+							Dry.t_operation = time.time()-t1
+							Dry.p1, Dry.p2 = c.p.read_pressure_sensor(0),c.p.read_pressure_sensor(1)
+							Dry.res = c.p.read_dllt_sensor()
+							time.sleep(c.PrereadingConfig.readDelay)
+
+							# PreReading Phase
+							#R1 = 0mm
+							Dry.r1_res,_ = mainLLT.preReading()
+							printg('Level 1..', Dry.r1_res,_)
+
+							#R2 = -1mm				
+							Dry.r2_res,_ = mainLLT.preReading(-c.PrereadingConfig.stepDown)
+							printg('Level 2..',Dry.r2_res,_)
+
+							#R3 = -2mm
+							Dry.r3_res,_ = mainLLT.preReading(-c.PrereadingConfig.stepDown)
+							printg('Level 3..',Dry.r3_res,_)
+
+							#R4 = -3mm
+							Dry.r4_res,_ = mainLLT.preReading(-c.PrereadingConfig.stepDown)
+							printg('Level 4..',Dry.r4_res,_)
+
+							#R5 = -4mm
+							Dry.r5_res,_ = mainLLT.preReading(-c.PrereadingConfig.stepDown)
+							printg('Level 5..',Dry.r5_res,_)
+
+							#R6 = -110
+							Dry.r6_res,_ = mainLLT.preReading(Dry.expectedSatZ[tip]-(c.p.get_motor_pos(0)/100.0))
+							printg('Level 6..',Dry.r6_res,_)
+
+							#Saturated Res & Z
+							Dry.satZ, Dry.satRes, Dry.satZlimit, Dry.saturated = mainLLT.findSaturation(Dry.zero, tip)
+							printg('SaturatedRes:',Dry.satRes,'at z:',Dry.satZ)
+
+							##################### WET WET WET WET WET ########################3
+
+							printb('WET PHASE..')
+							# Wet phase
+							t3 = time.time()
+							align(1,source,target+30)
+							Wet.zero = mainLLD.findSurface(target,lld='wet')
+							Wet.t_operation = time.time()-t3
+
+							#Checking wlld triggers
+							Wet.p1, Wet.p2 = c.p.read_pressure_sensor(0), c.p.read_pressure_sensor(1)
+							Wet.res = c.p.read_dllt_sensor()
+							c.DLLT_stop()
+							time.sleep(c.PrereadingConfig.readDelay)
+
+							# PreReading Phase
+							#R1 = 0mm
+							Wet.r1_res,_ = mainLLT.preReading()
+							printg('Level 1..', Wet.r1_res,_)
+
+							#R2 = -1mm				
+							Wet.r2_res,_ = mainLLT.preReading(-c.PrereadingConfig.stepDown)
+							printg('Level 2..',Wet.r2_res,_)
+
+							#R3 = -2mm
+							Wet.r3_res,_ = mainLLT.preReading(-c.PrereadingConfig.stepDown)
+							printg('Level 3..',Wet.r3_res, _)
+
+							#R4 = -3mm
+							Wet.r4_res,_ = mainLLT.preReading(-c.PrereadingConfig.stepDown)
+							printg('Level 4..',Wet.r4_res,_)
+
+							#R5 = -4mm
+							Wet.r5_res,_ = mainLLT.preReading(-c.PrereadingConfig.stepDown)
+							printg('Level 5..',Wet.r5_res,_)
+
+							#R6 = -110
+							Wet.r6_res,_ = mainLLT.preReading(Wet.expectedSatZ[tip]-(c.p.get_motor_pos(0)/100.0))
+							printg('Level 6..',Wet.r6_res,_)
+
+							#Saturated Res & Z
+							Wet.satZ, Wet.satRes, Wet.satZlimit, Wet.saturated = mainLLT.findSaturation(Wet.zero, tip)
+							printg('SaturatedRes:',Wet.satRes,'at z:',Wet.satZ)
+
+							c.move_abs_z(target+30,100,300,0)
+							t_tot = time.time() - t_tot1
+
+							# DRY DATA PUSH
+							n += 1
+							wrapper = '{}'
+							for i in range(42-1): wrapper += ',{}' 
+							back_write(wraps([wrapper.format(
+								x, n,
+								dates,
+								'P'+str(tip),
+								zeros,
+								p1_init,
+								atm_press,
+								res_init,
+								c.PLLDConfig.stem_vel,
+								c.PLLDConfig.stem_acc,
+								c.PLLDConfig.flow,
+								Dry.types,
+								Dry.useDynamic,
+								Dry.pressThres,
+								Dry.pressLimit,
+								Dry.resThres,
+								Dry.resLimit,
+								Dry.press_trig,
+								Dry.res_trig,
+								Dry.LLT_freq,
+								Dry.res,
+								res_init - Dry.res,
+								zeros - Dry.zero,
+								Dry.p1,
+								Dry.p2,
+								Dry.p1 - p1_init,
+								Dry.p2 - atm_press,
+								Dry.preRead_freq,
+								Dry.r1_res,
+								Dry.r2_res,
+								Dry.r3_res,
+								Dry.r4_res,
+								Dry.r5_res,
+								Dry.r6_res,
+								Dry.expectedSatZ[tip],
+								Dry.satRes,
+								Dry.satZ,
+								zeros-Dry.satZ,
+								Dry.satZlimit,
+								Dry.saturated,
+								Dry.t_operation,
+								t_tot
+								)]),filename)
+							
+							# WET DATA PUSH
+							n += 1
+							wrapper = '{}'
+							for i in range(42-1): wrapper += ',{}' 
+							back_write(wraps([wrapper.format(
+								x, n,
+								dates,
+								'P'+str(tip),
+								zeros,
+								p1_init,
+								atm_press,
+								res_init,
+								c.PLLDConfig.stem_vel,
+								c.PLLDConfig.stem_acc,
+								c.PLLDConfig.flow,
+								Wet.types,
+								Wet.useDynamic,
+								Wet.pressThres,
+								Wet.pressLimit,
+								Wet.resThres,
+								Wet.resLimit,
+								Wet.press_trig,
+								Wet.res_trig,
+								Wet.LLT_freq,
+								Wet.res,
+								res_init - Wet.res,
+								zeros - Wet.zero,
+								Wet.p1,
+								Wet.p2,
+								Wet.p1 - p1_init,
+								Wet.p2 - atm_press,
+								Wet.preRead_freq,
+								Wet.r1_res,
+								Wet.r2_res,
+								Wet.r3_res,
+								Wet.r4_res,
+								Wet.r5_res,
+								Wet.r6_res,
+								Wet.expectedSatZ[tip],
+								Wet.satRes,
+								Wet.satZ,
+								zeros-Wet.satZ,
+								Wet.satZlimit,
+								Wet.saturated,
+								Wet.t_operation,
+								t_tot
+								)]),filename)
+
+						printg('Eject Phase..')
+						# Eject phase
+						c.move_abs_z(0,100,100)
+						align(0,ejectpos,pick_target+10,pick_target+85)
+						eject()
+						eject()
+				align(0, next_pickpos, pick_target+50)
+
+		@staticmethod
+		def flowReferencing(tip, roughIncre=10, softIncre=1, lowSpeed = False):
+			mainLLD.test.runStat = True
+			source = 'D7'
+			align(1,source,0)
+			# z picktip
+			pick_targets 	= {20	:-134, 	200		:-125, 	1000	:-117}	
+			# z saat pindah labware biar ga nabrak timbangan	
+			evades 			= {20	:3,		200		:3,		1000	:0}	
+			# aspirate lowest pos	
+			targets 		= {20 	:-110, 	200 	:-100, 	1000	:-60}
+			safes 			= {20	:-55,	200		:-35,	1000	:0}
+			filetime = int(time.time())
+			filename = 'Level\LLD_flowReferencing_Rough{}.csv'.format(filetime)
+			back_write(wraps(['n'+','+'Flow'+','+'Press Limit'+','+'P2'+','+'Press Gap']),filename)
+			c.move_abs_z(0,100,200)
+			target = targets[tip]
+			safe = safes[tip]
+			if lowSpeed: original_flow = LLD.lowSpeed_flow
+			else:  original_flow = c.PLLDConfig.flow
+			c.PLLDConfig.UseDynamic = False
+			n, working_flow = 0, 0
+			Dry.reset()
+			while (not Dry.press_trig or Dry.res_trig) and mainLLD.test.runStat:
+				n += 1
+				if lowSpeed: working_flow = LLD.lowSpeed_flow
+				else: working_flow = c.PLLDConfig.flow
+				printy('Start Testing Rough:',working_flow,'uL/s')
+				c.move_abs_z(safe-45,100,200)
+				mainLLD.findSurface(target, lowSpeed = lowSpeed)
+				back_write(wraps([str(n)+','+str(working_flow)+','+str(Dry.pressLimit)+','+str(c.p.read_pressure_sensor(1))+','+str(Dry.pressLimit-c.p.read_pressure_sensor(1))]),filename)
+				time.sleep(0.2)
+				if lowSpeed: LLD.lowSpeed_flow += roughIncre
+				else: c.PLLDConfig.flow += roughIncre
+				c.move_abs_z(safe, 100,200)
+				wawik(1,source,target-15)
+				if working_flow >= 200:
+					break
+			Dry.reset()
+			n = 0
+			if working_flow <= 200:
+				if lowSpeed: LLD.lowSpeed_flow -= (2*roughIncre)
+				else: c.PLLDConfig.flow -= (2*roughIncre)
+				filename = 'Level\LLD_flowReferencing_Soft{}.csv'.format(filetime)
+				back_write(wraps(['n'+','+'Flow'+','+'Press Limit'+','+'P2'+','+'Press Gap']),filename)
+				while (not Dry.press_trig or Dry.res_trig) and mainLLD.test.runStat:
+					n += 1
+					if lowSpeed: working_flow = LLD.lowSpeed_flow
+					else: working_flow = c.PLLDConfig.flow
+					printy('Start Testing Soft:',working_flow,'uL/s')
+					c.move_abs_z(safe-45,100,200)
+					mainLLD.findSurface(target, lowSpeed = lowSpeed)
+					back_write(wraps([str(n)+','+str(working_flow)+','+str(Dry.pressLimit)+','+str(c.p.read_pressure_sensor(1))+','+str(Dry.pressLimit-c.p.read_pressure_sensor(1))]),filename)
+					time.sleep(0.2)
+					if lowSpeed: LLD.lowSpeed_flow += roughIncre
+					else: c.PLLDConfig.flow += roughIncre
+					c.move_abs_z(safe, 100,200)
+					wawik(1,'D7',target-15)
+				finalFlow = working_flow - softIncre
+			else:
+				finalFlow = working_flow
+				printr('FLOW IS TOO HIGH!')
+			if lowSpeed: LLD.lowSpeed_flow = original_flow 
+			else:  c.PLLDConfig.flow = original_flow
+			c.PLLDConfig.UseDynamic = True
+			printg('Final Flow:',finalFlow,'uL/s')
+			return finalFlow
 
 lld = mainLLD()
 
@@ -2814,303 +3173,6 @@ class PvR(): # Pressure vs Resistance First Triggered
 		else:
 			print 'No PvR have ran'
 
-# LLD TEST
-def tip_reciprocate(*kw):
-	tip, iters, pickpos = None, None, None
-	if not kw:
-		printy('!!! PUT THE WATER BUCKET ON RACK 1-D7 !!!')
-		inputs1 = avoidInpErr.reInput('Tip, Iter, Pickpos >> ')
-		tip = int(inputs1.split(',')[0])
-		iters = int(inputs1.split(',')[1])
-		pickpos = inputs1.split(',')[2]
-	else:
-		tip = kw[0]
-		iters = kw[1]
-		pickpos = kw[2]
-
-	# z picktip
-	pick_targets 	= {20	:-134, 	200		:-125, 	1000	:-117}	
-	# z saat pindah labware biar ga nabrak timbangan	
-	evades 			= {20	:3,		200		:3,		1000	:0}	
-	# aspirate lowest pos	
-	targets 		= {20 	:-110, 	200 	:-100, 	1000	:-60}
-	safes 			= {20	:-55,	200		:-35,	1000	:0}
-
-	deck.setZeroDeckMode(tip)
-	next_pickpos = pickpos
-	pick_target = pick_targets[tip]
-	evade = evades[tip]
-	target = targets[tip]
-	safe = safes[tip]
-	source = 'D7'
-	zeros = 0
-	n = 0
-
-	filename = 'Level\LLD_P'+str(tip)+ '_' + time.strftime('%Y%m%d%H%M%S', time.localtime(time.time())) + '.csv'
-	back_write(wraps([
-		'X'+','+'n'			+','+
-		'Date'				+','+
-		'Tip'				+','+
-		'Zero Surface'		+','+
-		'p1_init'			+','+
-		'AtmPress(p2_init)' +','+
-		'Initial Res'		+','+
-		'Veloc'				+','+
-		'Accel'				+','+
-		'Flow'				+','+
-		'Type'				+','+
-		'UseDynamic'		+','+
-		'Press Threshold'	+','+
-		'Press Limit'		+','+
-		'Res Threshold'		+','+
-		'Res Limit'			+','+
-		'Press Trig'		+','+
-		'Res Trig'			+','+
-		'LLT Res Freq'		+','+
-		'ZeroRes'			+','+
-		'dRes(init-zero)'	+','+
-		'Depth'				+','+
-		'P1'				+','+
-		'P2'				+','+
-		'dP1(init-zero)'	+','+
-		'dP2(init-zero)'	+','+
-		'Pre Read Freq'		+','+
-		'R1'				+','+
-		'R2'				+','+
-		'R3'				+','+
-		'R4'				+','+
-		'R5'				+','+
-		'R6 at ExpectedSatZ'+','+
-		'ExpectedSatZ'		+','+
-		'Saturated Res'		+','+
-		'Saturated Z'		+','+
-		'FindSatZLimit'		+','+
-		'Saturated'			+','+
-		'Opr Time ms'		+','+
-		'FullCycle ms']),filename)
-	c.move_abs_z(-10,200,500)
-
-	for x in range(iters):
-		LLD.reset()
-		t_tot1 = time.time()
-		c.tare_pressure(); atm_press = c.ATM_pressure
-		dates = time.strftime('%Y/%m/%d %H:%M:%S', time.localtime(time.time()))
-		if tip == 1000:
-			picktipstat = manualPicktip(next_pickpos, pick_target)
-		else:
-			picktipstat = picktip(next_pickpos,pick_target,safe)
-		pickpos 		= next_pickpos
-		next_pickpos 	= picktipstat[1]
-		ejectpos		= picktipstat[2]
-		if picktipstat[0]:
-			next_pickpos
-			p1_init = c.p.read_pressure_sensor(0)
-			res_init = c.p.read_dllt_sensor()
-			printg('Finding Zero Surface...')
-			print 'initRes:',res_init,'| p1_init:',p1_init,'| p2_init:',atm_press
-			align(1,source,target+15,safe)
-			zeros = mainLLD.findSurface(target,lld='dry',lowSpeed=True)
-			if tip != 1000:
-				if c.p.read_dllt_sensor() < res_init - Dry.resThres:
-					LLD.res_trig = True
-				if LLD.res_trig:
-					printr('Resistance triggered! Pressure Zero Surface Fail, Trying GoZERO...')
-					mainLLD.goZero()
-					zeros = LLD.zero
-					LLD.surfaceFound = True
-				printg('Zero Surface Found! Cleaning up the tip...')
-			Dry.reset()
-			Wet.reset()
-			if LLD.surfaceFound:
-				wawik(1,source,target-10)
-				#################### DRY DRY DRY DRY DRY #####################################
-
-				# Dry Phase
-				printy('DRY PHASE..')
-				t1 = time.time()
-				Dry.zero = mainLLD.findSurface(target,lld='dry')
-				Dry.t_operation = time.time()-t1
-				Dry.p1, Dry.p2 = c.p.read_pressure_sensor(0),c.p.read_pressure_sensor(1)
-				Dry.res = c.p.read_dllt_sensor()
-				time.sleep(c.PrereadingConfig.readDelay)
-
-				# PreReading Phase
-				#R1 = 0mm
-				Dry.r1_res,_ = mainLLT.preReading()
-				printg('Level 1..', Dry.r1_res,_)
-
-				#R2 = -1mm				
-				Dry.r2_res,_ = mainLLT.preReading(-c.PrereadingConfig.stepDown)
-				printg('Level 2..',Dry.r2_res,_)
-
-				#R3 = -2mm
-				Dry.r3_res,_ = mainLLT.preReading(-c.PrereadingConfig.stepDown)
-				printg('Level 3..',Dry.r3_res,_)
-
-				#R4 = -3mm
-				Dry.r4_res,_ = mainLLT.preReading(-c.PrereadingConfig.stepDown)
-				printg('Level 4..',Dry.r4_res,_)
-
-				#R5 = -4mm
-				Dry.r5_res,_ = mainLLT.preReading(-c.PrereadingConfig.stepDown)
-				printg('Level 5..',Dry.r5_res,_)
-
-				#R6 = -110
-				Dry.r6_res,_ = mainLLT.preReading(Dry.expectedSatZ[tip]-(c.p.get_motor_pos(0)/100.0))
-				printg('Level 6..',Dry.r6_res,_)
-
-				#Saturated Res & Z
-				Dry.satZ, Dry.satRes, Dry.satZlimit, Dry.saturated = mainLLT.findSaturation(Dry.zero, tip)
-				printg('SaturatedRes:',Dry.satRes,'at z:',Dry.satZ)
-
-				##################### WET WET WET WET WET ########################3
-
-				printb('WET PHASE..')
-				# Wet phase
-				t3 = time.time()
-				align(1,source,target+30)
-				Wet.zero = mainLLD.findSurface(target,lld='wet')
-				Wet.t_operation = time.time()-t3
-
-				#Checking wlld triggers
-				Wet.p1, Wet.p2 = c.p.read_pressure_sensor(0), c.p.read_pressure_sensor(1)
-				Wet.res = c.p.read_dllt_sensor()
-				c.DLLT_stop()
-				time.sleep(c.PrereadingConfig.readDelay)
-
-				# PreReading Phase
-				#R1 = 0mm
-				Wet.r1_res,_ = mainLLT.preReading()
-				printg('Level 1..', Wet.r1_res,_)
-
-				#R2 = -1mm				
-				Wet.r2_res,_ = mainLLT.preReading(-c.PrereadingConfig.stepDown)
-				printg('Level 2..',Wet.r2_res,_)
-
-				#R3 = -2mm
-				Wet.r3_res,_ = mainLLT.preReading(-c.PrereadingConfig.stepDown)
-				printg('Level 3..',Wet.r3_res, _)
-
-				#R4 = -3mm
-				Wet.r4_res,_ = mainLLT.preReading(-c.PrereadingConfig.stepDown)
-				printg('Level 4..',Wet.r4_res,_)
-
-				#R5 = -4mm
-				Wet.r5_res,_ = mainLLT.preReading(-c.PrereadingConfig.stepDown)
-				printg('Level 5..',Wet.r5_res,_)
-
-				#R6 = -110
-				Wet.r6_res,_ = mainLLT.preReading(Wet.expectedSatZ[tip]-(c.p.get_motor_pos(0)/100.0))
-				printg('Level 6..',Wet.r6_res,_)
-
-				#Saturated Res & Z
-				Wet.satZ, Wet.satRes, Wet.satZlimit, Wet.saturated = mainLLT.findSaturation(Wet.zero, tip)
-				printg('SaturatedRes:',Wet.satRes,'at z:',Wet.satZ)
-
-				c.move_abs_z(target+30,100,300,0)
-				t_tot = time.time() - t_tot1
-
-				# DRY DATA PUSH
-				n += 1
-				wrapper = '{}'
-				for i in range(41-1): wrapper += ',{}' 
-				back_write(wraps([wrapper.format(
-					x, n,
-					dates,
-					'P'+str(tip),
-					zeros,
-					p1_init,
-					atm_press,
-					res_init,
-					c.PLLDConfig.stem_vel,
-					c.PLLDConfig.stem_acc,
-					c.PLLDConfig.flow,
-					Dry.types,
-					Dry.useDynamic,
-					Dry.pressThres,
-					Dry.pressLimit,
-					Dry.resThres,
-					Dry.resLimit,
-					Dry.press_trig,
-					Dry.res_trig,
-					Dry.LLT_freq,
-					Dry.res,
-					res_init - Dry.res,
-					zeros - Dry.zero,
-					Dry.p1,
-					Dry.p2,
-					Dry.p1 - p1_init,
-					Dry.p2 - atm_press,
-					Dry.preRead_freq,
-					Dry.r1_res,
-					Dry.r2_res,
-					Dry.r3_res,
-					Dry.r4_res,
-					Dry.r5_res,
-					Dry.r6_res,
-					Dry.expectedSatZ[tip],
-					Dry.satRes,
-					Dry.satZ,
-					Dry.satZlimit,
-					Dry.saturated,
-					Dry.t_operation,
-					t_tot
-					)]),filename)
-				
-				# WET DATA PUSH
-				n += 1
-				wrapper = '{}'
-				for i in range(41-1): wrapper += ',{}' 
-				back_write(wraps([wrapper.format(
-					x, n,
-					dates,
-					'P'+str(tip),
-					zeros,
-					p1_init,
-					atm_press,
-					res_init,
-					c.PLLDConfig.stem_vel,
-					c.PLLDConfig.stem_acc,
-					c.PLLDConfig.flow,
-					Wet.types,
-					Wet.useDynamic,
-					Wet.pressThres,
-					Wet.pressLimit,
-					Wet.resThres,
-					Wet.resLimit,
-					Wet.press_trig,
-					Wet.res_trig,
-					Wet.LLT_freq,
-					Wet.res,
-					res_init - Wet.res,
-					zeros - Wet.zero,
-					Wet.p1,
-					Wet.p2,
-					Wet.p1 - p1_init,
-					Wet.p2 - atm_press,
-					Wet.preRead_freq,
-					Wet.r1_res,
-					Wet.r2_res,
-					Wet.r3_res,
-					Wet.r4_res,
-					Wet.r5_res,
-					Wet.r6_res,
-					Wet.expectedSatZ[tip],
-					Wet.satRes,
-					Wet.satZ,
-					Wet.satZlimit,
-					Wet.saturated,
-					Wet.t_operation,
-					t_tot
-					)]),filename)
-
-			printg('Eject Phase..')
-			# Eject phase
-			c.move_abs_z(0,100,100)
-			align(0,ejectpos,pick_target+10,pick_target+85)
-			eject()
-			eject()
-	align(0, next_pickpos, pick_target+50)
 
 
 # ALWAYS RE-SETUP EVERY TIME CHANNEL IS CHANGED

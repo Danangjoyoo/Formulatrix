@@ -2087,6 +2087,16 @@ class Plotter():
 		'p2'	: [[], 'p2'		, False] }
 
 	@staticmethod
+	def run(*args): #function, param1, param2, dll
+		newArgs = list(args)
+		func = newArgs.pop(0)
+		params = tuple(newArgs)
+		thread1 = threading.Thread(target=func,args=params)
+		thread1.start()
+		time.sleep(0.1)
+		Plotter.plot_realtime(p1=True,p2=True,res=True,vel=True)
+
+	@staticmethod
 	def reset_realtime():
 		Plotter.plotStat = False
 		Plotter.init_t = time.time()
@@ -2246,7 +2256,7 @@ class mainLLD():
 			self.r4_res = 0
 			self.r5_res = 0
 			self.r6_res = 0
-			self.expectedSatZ = {20: -110, 200: -100, 1000: 70}
+			self.expectedSatZ = {20: -110, 200: -100, 1000: -70}
 			self.satRes = 0
 			self.satZ = 0
 			self.satZlimit = 0
@@ -2579,6 +2589,7 @@ class mainLLT():
 					200:40,
 					1000:80}
 		maxZ = z-tipLength[tip]
+		print('z nih',z,maxZ)
 		if tip == 1000:
 			maxZ = -135
 		zpack, respack, decreasePack = [0],[0],[0]
@@ -2633,7 +2644,7 @@ class mainLLT():
 	@staticmethod
 	def test_setUp(tip, volume,iters=1):
 		printy("LLT Pipetting Test Started..")
-		targets = {20: -130, 200: 120}
+		targets = {20: -130, 200: -120, 1000: -65}
 		vols = vol_calibrate([volume], tip); vol = vols[0]
 		mainLLT.run()
 		mainLLT.testStat = True
@@ -2804,12 +2815,18 @@ class PvR(): # Pressure vs Resistance First Triggered
 			print 'No PvR have ran'
 
 # LLD TEST
-def tip_reciprocate():
-	printy('!!! PUT THE WATER BUCKET ON RACK 1-D7 !!!')
-	inputs1 = avoidInpErr.reInput('Tip, Iter, Pickpos >> ')
-	tip = int(inputs1.split(',')[0])
-	iters = int(inputs1.split(',')[1])
-	pickpos = inputs1.split(',')[2]
+def tip_reciprocate(*kw):
+	tip, iters, pickpos = None, None, None
+	if not kw:
+		printy('!!! PUT THE WATER BUCKET ON RACK 1-D7 !!!')
+		inputs1 = avoidInpErr.reInput('Tip, Iter, Pickpos >> ')
+		tip = int(inputs1.split(',')[0])
+		iters = int(inputs1.split(',')[1])
+		pickpos = inputs1.split(',')[2]
+	else:
+		tip = kw[0]
+		iters = kw[1]
+		pickpos = kw[2]
 
 	# z picktip
 	pick_targets 	= {20	:-134, 	200		:-125, 	1000	:-117}	

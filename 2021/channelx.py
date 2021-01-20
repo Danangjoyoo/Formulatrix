@@ -234,8 +234,10 @@ def stop_logger():
 	global thread_run
 	p.stop_log()
 	thread_run = False
+
 lastline = None
 loggername = None
+all_data = None
 def thread_logger(motorm=0,sensorm=6):
 	global thread_run
 	global lastline
@@ -282,6 +284,7 @@ def thread_logger(motorm=0,sensorm=6):
 			if len(get_data) == 0:
 				break
 			#time.sleep(0.05)
+		global all_data
 		data = chunks(all_data, sum)
 		data_length = len(data)
 		print data_length
@@ -298,6 +301,10 @@ def thread_logger(motorm=0,sensorm=6):
 	call(["..\Include\log_plot.exe", file_name])
 
 #------- End Logger ---------------
+
+def getAlldata():
+	global all_data
+	return all_data
 
 # =========================================== EVENT =========================================================================================
 def handle_move_done(motor_id,status,position):
@@ -1734,7 +1741,7 @@ class PLLDConfig():
 	stem_acc = 1000
 	colThres = 100
 	currentThresh = 1.3
-	pressThres = 4.5
+	pressThres = 2.7 #4.5
 	resThres = 500
 	freq = 500
 	freq_delay = 250/1000.0

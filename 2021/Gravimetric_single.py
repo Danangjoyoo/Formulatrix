@@ -1988,7 +1988,6 @@ class Plotter():
 	lastLen = 0
 	init_t = 0
 	filename = None
-	t,travel,vel,acc,col,res,p1,p2 = [], [], [], [], [], [], [], []
 
 	@staticmethod
 	def plot_logging(start=True,thread=False):
@@ -1996,7 +1995,6 @@ class Plotter():
 			n = 0
 			Plotter.getData = True
 			filename = 'Level\plot_sensor_{}.csv'.format(int(time.time()))
-			pd.DataFrame([[0,0,0,0,0,0,0,0]],columns=['t','travel','vel','acc','col','res','p1','p2']).to_csv(filename, index=False)
 			Plotter.filename = filename
 			# movement
 			init_t = time.time()
@@ -2037,11 +2035,12 @@ class Plotter():
 				thread1.start()
 		else:
 			Plotter.getData = False
+			print 'Sensor plot stopped'
 
 	#==================== REALTIME PLOTTER ======================
 	plotStat = False
-	thread1 = None
 	init_t = time.time()
+	threads = []
 	init_travel = 0
 	avgTime = []
 	x = []
@@ -2055,7 +2054,7 @@ class Plotter():
 	before_vel = 0
 	current_acc = 0
 	before_acc = 0
-	varPack = {
+	varPack = { 
 		'travel': [[], 'travel'	, False, 1],
 		'vel'	: [[], 'vel'	, False, 1],
 		'acc'	: [[], 'acc'	, False, 1],
@@ -2066,68 +2065,96 @@ class Plotter():
 
 	@staticmethod
 	def run(*args): #function, param1, param2, dll
-		newArgs = list(args)
-		func = newArgs.pop(0)
-		params = tuple(newArgs)
-		Plotter.thread1 = threading.Thread(target=func,args=params)
-		Plotter.thread1.start()
-		time.sleep(0.1)
-		Plotter.plot_realtime(p1=True,p2=True,res=True)
+		if args:
+			printg('Realtime Plotter Started..')
+			newArgs = list(args)
+			func = newArgs.pop(0)
+			if len(args) > 1:
+				params = tuple(newArgs)
+				thread1 = threading.Thread(target=func,args=params)
+			else:
+				thread1 = threading.Thread(target=func)
+			thread1.start()
+			Plotter.threads.append(thread1)
+			time.sleep(0.1)
+			# set sensor yang mau diplot <nama sensor>=True di parameter
+			Plotter.plot_realtime(p1=True,p2=True,res=True)
+			printg('Realtime Plotter Finished..')
+			Plotter.reset_realtime()
+			#thread1.join()
+		else:
+			printr('Please input function!')
+
+	@staticmethod
+	def pause():
+		while Plotter.init: time.sleep(0.1)
+		while not Plotter.init:
+			if kb.is_pressed('ctrl+p'): Plotter.plotStat = False
+			else: Plotter.plotStat = True
+			if kb.is_pressed('ctrl+='):
+				Plotter.limit += 2
+			if kb.is_pressed('ctrl+-'):
+				Plotter.limit -= 2
 
 	@staticmethod
 	def raiseProcess():
-		if Plotter.thread1 != None:
-			printy('Raising the background process to the foregound! Check at Terminal/Console/CMD!')
-			Plotter.thread1.join()
+		if len(Plotter.threads) > 0:
+				Plotter.threads[0].join()
+				printy('Raising the background process to the foregound! Check at Terminal/Console/CMD!')
 		else:
-			print('Background is unregistered!')
+			printr('Background is unregistered!')
 
 	@staticmethod
 	def reset_realtime():
+		printy('Variables changed to default')
 		Plotter.plotStat = False
-		Plotter.thread1 = None
 		Plotter.init_t = time.time()
 		Plotter.init_travel = 0
 		Plotter.avgTime = []
 		Plotter.x = []
-		Plotter.limit = 20
+		Plotter.limit = 30
 		Plotter.init = True
-		varPack = {
+		Plotter.varPack = { 
 			'travel': [[], 'travel'	, False, 1],
 			'vel'	: [[], 'vel'	, False, 1],
 			'acc'	: [[], 'acc'	, False, 1],
 			'col'	: [[], 'col'	, False, 1],
 			'res'	: [[], 'res'	, False, 1],
 			'p1'	: [[], 'p1'		, False, 1],
-			'p2'	: [[], 'p2'		, False, 1]
-		}
+			'p2'	: [[], 'p2'		, False, 1] }
 
 	@staticmethod
-	def setScale(**vars):
+	def setScale(**vars): # untuk scaling chart
 		container, label, showStat, scale = 0, 1, 2, 3
 		for var in vars:
 			if var in Plotter.varPack:
 				Plotter.varPack[var][scale] = vars[var]
+				print var,'scale:', vars[var]
 
 	@staticmethod
-	def plot_realtime(**hide):
-		if hide:
-			Plotter.reset_realtime()
-			container, label, showStat = 0, 1, 2
-			if 'limit' in hide: Plotter.limit = hide['limit']
-			for var in Plotter.varPack:
-				if Plotter.varPack[var][label] in hide:
-					Plotter.varPack[var][showStat] = hide[Plotter.varPack[var][label]]
+	def setSensor(**sens): # untuk set sensor dari terminal dan limit
+		container, label, showStat, scale = 0, 1, 2, 3
+		if 'limit' in sens: Plotter.limit = sens['limit']
+		for sensor in sens:
+			if sensor in Plotter.varPack:
+				Plotter.varPack[sensor][showStat] = sens[sensor]
+				print sensor, 'plot:', sens[sensor]
+
+	@staticmethod
+	def plot_realtime(**show):
+		if show:			
+			Plotter.setSensor(**show)
+			Plotter.plotStat = True
 			ani = FuncAnimation(plt.gcf(), Plotter.autoUpdate, interval=15)
 			plt.show()
 		else:
-			print "Input sensor that you want to plot! (Ex: p2=True, p1= True)"
+			printr("Input sensor that you want to plot! (Ex: p2=True, p1= True)")
 
 	@staticmethod
 	def autoUpdate(i):
 		t1 = time.time()
 		# Initialization =======================
-		container, label, showStat = 0, 1, 2
+		container, label, showStat, scale = 0, 1, 2, 3
 		if Plotter.init:
 			Plotter.init_t = time.time()
 			Plotter.current_t = time.time() - Plotter.init_t
@@ -2159,22 +2186,30 @@ class Plotter():
 		p1 = c.p.read_pressure_sensor(0)
 		p2 = c.p.read_pressure_sensor(1)
 		# ADD DATA
-		Plotter.x.append(Plotter.current_t)
-		Plotter.varPack['travel'][container].append(Plotter.current_travel*Plotter.varPack['travel'][scale])
-		Plotter.varPack['vel'	][container].append(Plotter.current_vel*Plotter.varPack['vel'][scale])
-		Plotter.varPack['acc'	][container].append(Plotter.current_acc*Plotter.varPack['acc'][scale])
-		Plotter.varPack['col'	][container].append(col*Plotter.varPack['col'][scale])
-		Plotter.varPack['res'	][container].append(res*Plotter.varPack['res'][scale])
-		Plotter.varPack['p1'	][container].append(p1*Plotter.varPack['p1'][scale])
-		Plotter.varPack['p2'	][container].append(p2*Plotter.varPack['p2'][scale])
-
-		# start to plot
+		if Plotter.plotStat:
+			Plotter.x.append(Plotter.current_t)
+			Plotter.varPack['travel'][container].append(Plotter.current_travel*Plotter.varPack['travel'][scale])
+			Plotter.varPack['vel'	][container].append(Plotter.current_vel*Plotter.varPack['vel'][scale])
+			Plotter.varPack['acc'	][container].append(Plotter.current_acc*Plotter.varPack['acc'][scale])
+			Plotter.varPack['col'	][container].append(col*Plotter.varPack['col'][scale])
+			Plotter.varPack['res'	][container].append(res*Plotter.varPack['res'][scale])
+			Plotter.varPack['p1'	][container].append(p1*Plotter.varPack['p1'][scale])
+			Plotter.varPack['p2'	][container].append(p2*Plotter.varPack['p2'][scale])
+			#Plotter.varPack['travel'][container].append(Plotter.current_travel)
+			#Plotter.varPack['vel'	][container].append(Plotter.current_vel)
+			#Plotter.varPack['acc'	][container].append(Plotter.current_acc)
+			#Plotter.varPack['col'	][container].append(col)
+			#Plotter.varPack['res'	][container].append(res)
+			#Plotter.varPack['p1'	][container].append(p1)
+			#Plotter.varPack['p2'	][container].append(p2)
+		# starting to plot
 		plt.cla()
 		for var in Plotter.varPack:
 			if Plotter.varPack[var][showStat]:
 				plt.plot(Plotter.x, Plotter.varPack[var][container], linewidth=1, label=Plotter.varPack[var][label])
 		plt.legend(loc='upper left')
-        
+		plt.title('Sensor Plotter | limit: {}'.format(Plotter.limit))
+		plt.text(100,100,str(Plotter.limit))
         # end of plotting =======================
         #print("Elapsed:", round(time.time() - t1, 4), "ms")
 
@@ -2260,6 +2295,7 @@ class mainLLD():
 			self.lowSpeed_flow = 15
 
 		def reset(self):
+			print self.types,'has been reset..'
 			self.surfaceFound = False
 			self.press_trig = False
 			self.pressLimit = None
@@ -2417,6 +2453,7 @@ class mainLLD():
 
 	@staticmethod
 	def findSurface(depth=-80,lld='dry',lowSpeed=False):
+		LLD.reset()
 		print('FindSurface Started.. lld: {} | HighAccuracy: {} | depth: {}'.format(lld, lowSpeed, depth))
 		c.clear_estop()
 		c.clear_motor_fault()
@@ -2438,21 +2475,29 @@ class mainLLD():
 			Wet.resLimit = c.setUp_wlld()
 		init_res = c.p.read_dllt_sensor()
 		print 'move', c.p.get_motor_pos(0)
+		triggerOnZ, triggerOnHZ = None, None
 		c.move_abs_z(depth,stem_vel,stem_acc) # max move but will stop when plld triggered"
-		postPress = c.p.read_pressure_sensor(1)
-		postRes = c.p.read_dllt_sensor()
 		if str.lower(lld) == 'dry':
-			printr('Trigger check: NormalZ: {} | HardZ: {}'.format(c.check_triggered_input(c.AbortID.NormalAbortZ), c.check_triggered_input(c.AbortID.HardZ)))
 			if not lowSpeed:
 				if c.get_triggered_input(c.AbortID.NormalAbortZ) == 1 << c.InputAbort.PressureSensor2:
+					triggerOnZ = c.check_triggered_input(c.AbortID.NormalAbortZ)
 					Dry.press_trig = True
 				if c.get_triggered_input(c.AbortID.HardZ) == 1 << c.InputAbort.LiquidLevelSensor:
+					triggerOnHZ = c.check_triggered_input(c.AbortID.HardZ)
 					Dry.res_trig = True
 			else:
-				if c.get_triggered_input(c.AbortID.HardZ): Dry.press_trig = True
+				triggerOnHZ = c.check_triggered_input(c.AbortID.HardZ)
+				if c.get_triggered_input(c.AbortID.HardZ) == 1 << c.InputAbort.PressureSensor2:
+					Dry.press_trig = True
+				elif c.get_triggered_input(c.AbortID.HardZ) == 1 << c.InputAbort.LiquidLevelSensor:
+					Dry.res_trig = True
 		elif str.lower(lld) == 'wet':
 			if c.get_triggered_input(c.AbortID.HardZ) == 1 << c.InputAbort.LiquidLevelSensor:
+				triggerOnHZ = c.check_triggered_input(c.AbortID.HardZ)
 				Wet.res_trig = True
+		postPress = c.p.read_pressure_sensor(1)
+		postRes = c.p.read_dllt_sensor()
+		printr('Trigger check: NormalZ: {} | HardZ: {}'.format(triggerOnZ, triggerOnHZ))
 		print 'done move',  c.p.get_motor_pos(0)
 		# after the motor stopped, set every process done
 		c.abort_flow()
@@ -2462,7 +2507,7 @@ class mainLLD():
 		Count_volume_done = True
 		Pipetting_done = True
 		# clear all abort
-		print 'press trig:',Dry.press_trig, Dry.res_trig
+		print 'press-res trig:',Dry.press_trig, Dry.res_trig
 		pos =  c.get_motor_pos()
 		c.clear_motor_fault()
 		c.clear_abort_config(c.AbortID.NormalAbortZ)
@@ -2473,25 +2518,23 @@ class mainLLD():
 		print 'pressureCheck:\t limit: {}\t | postpress: {}'.format(Dry.pressLimit, postPress)
 		print 'resCheck:\t limit: {}\t\t | postRes: {}'.format(init_res- c.PLLDConfig.resThres, postRes)
 		if str.lower(lld) == 'dry':
-			if Dry.pressLimit <= postPress or Dry.press_trig:
+			if Dry.press_trig:
 				LLD.surfaceFound = True
 				Dry.surfaceFound = True
 				printy('Surface found at Dry')
 			else:
 				printy("Pressure Limit isn't reached at Dry")
-			if init_res - c.PLLDConfig.resThres >= postRes or Dry.res_trig:
+			if Dry.res_trig:
 				LLD.surfaceFound = True
 				Dry.surfaceFound = True
 				printy('Resistance Triggered at Dry')
-				#print 'PressLimit: {} | Current P2: {}'.format(Dry.pressLimit, c.p.read_pressure_sensor(1))
 		elif str.lower(lld) == 'wet':
-			if init_res - c.PLLDConfig.resThres >= postRes or Wet.res_trig:
+			if Wet.res_trig:
 				LLD.surfaceFound = True
 				Wet.surfaceFound = True
 				printb('Surface found at Wet')
 			else:
-				printy("Resistance Limit isn't reached at Wet")
-				#print 'ResLimit: {} | Current Res: {}'.format(Wet.resLimit, c.p.read_dllt_sensor())
+				printy("Resistance Limit isn't reached at Wet")				
 		return zero
 
 	# LLD TEST / TIP RECIPROCATING
@@ -2499,8 +2542,8 @@ class mainLLD():
 		runStat = True
 
 		@staticmethod
-		def stopBackgroundTest():
-			printr('STOPPING LLD BACKGROUND TEST... PLEASE WAIT UNTILL THE LAST PROCESS IS DONE!\t\t\t')
+		def stopTest():
+			printr('STOPPING LLD TEST... PLEASE WAIT UNTILL THE LAST PROCESS IS DONE!\t\t\t')
 			mainLLD.test.runStat = False
 
 		@staticmethod
@@ -2818,25 +2861,27 @@ class mainLLD():
 			# aspirate lowest pos	
 			targets 		= {20 	:-110, 	200 	:-100, 	1000	:-60}
 			safes 			= {20	:-55,	200		:-35,	1000	:0}
-			filetime = int(time.time())
-			filename = 'Level\LLD_flowReferencing_Rough{}.csv'.format(filetime)
-			back_write(wraps(['n'+','+'Flow'+','+'Press Limit'+','+'P2'+','+'Press Gap']),filename)
+			#filetime = int(time.time())
+			#filename = 'Level\LLD_flowReferencing_Rough{}.csv'.format(filetime)
+			#back_write(wraps(['n'+','+'Flow'+','+'Press Limit'	+','+'P2'+','+'Press Gap']),filename)
 			c.move_abs_z(0,100,200)
 			target = targets[tip]
 			safe = safes[tip]
 			if lowSpeed: original_flow = LLD.lowSpeed_flow
 			else:  original_flow = c.PLLDConfig.flow
 			c.PLLDConfig.UseDynamic = False
-			n, working_flow = 0, 0
+			n, m, working_flow = 0, 0, 0
 			Dry.reset()
-			while (not Dry.press_trig or Dry.res_trig) and mainLLD.test.runStat:
+			while (not Dry.press_trig) and mainLLD.test.runStat:
 				n += 1
 				if lowSpeed: working_flow = LLD.lowSpeed_flow
 				else: working_flow = c.PLLDConfig.flow
 				printy('Start Testing Rough:',working_flow,'uL/s')
 				c.move_abs_z(safe-45,100,200)
-				mainLLD.findSurface(target, lowSpeed = lowSpeed)
-				back_write(wraps([str(n)+','+str(working_flow)+','+str(Dry.pressLimit)+','+str(c.p.read_pressure_sensor(1))+','+str(Dry.pressLimit-c.p.read_pressure_sensor(1))]),filename)
+				c.start_flow(working_flow)
+				c.move_abs_z(target,c.PLLDConfig.stem_vel, c.PLLDConfig.stem_acc)
+				#mainLLD.findSurface(target, lowSpeed = lowSpeed)
+				#back_write(wraps([str(n)+','+str(working_flow)+','+str(Dry.pressLimit)+','+str(c.p.read_pressure_sensor(1))+','+str(Dry.pressLimit-c.p.read_pressure_sensor(1))]),filename)
 				time.sleep(0.2)
 				if lowSpeed: LLD.lowSpeed_flow += roughIncre
 				else: c.PLLDConfig.flow += roughIncre
@@ -2845,26 +2890,29 @@ class mainLLD():
 				if working_flow >= 200:
 					break
 			Dry.reset()
-			n = 0
 			if working_flow <= 200:
-				if lowSpeed: LLD.lowSpeed_flow -= (2*roughIncre)
-				else: c.PLLDConfig.flow -= (2*roughIncre)
-				filename = 'Level\LLD_flowReferencing_Soft{}.csv'.format(filetime)
-				back_write(wraps(['n'+','+'Flow'+','+'Press Limit'+','+'P2'+','+'Press Gap']),filename)
-				while (not Dry.press_trig or Dry.res_trig) and mainLLD.test.runStat:
-					n += 1
+				if lowSpeed: 
+					LLD.lowSpeed_flow = original_flow + (n-2)*roughIncre + softIncre
+				else:
+					c.PLLDConfig.flow = original_flow + (n-2)*roughIncre + softIncre
+				#filename = 'Level\LLD_flowReferencing_Soft{}.csv'.format(filetime)
+				#back_write(wraps(['n'+','+'Flow'+','+'Press Limit'+','+'P2'+','+'Press Gap']),filename)
+				while (not Dry.press_trig) and mainLLD.test.runStat:
+					m += 1
 					if lowSpeed: working_flow = LLD.lowSpeed_flow
 					else: working_flow = c.PLLDConfig.flow
 					printy('Start Testing Soft:',working_flow,'uL/s')
 					c.move_abs_z(safe-45,100,200)
-					mainLLD.findSurface(target, lowSpeed = lowSpeed)
-					back_write(wraps([str(n)+','+str(working_flow)+','+str(Dry.pressLimit)+','+str(c.p.read_pressure_sensor(1))+','+str(Dry.pressLimit-c.p.read_pressure_sensor(1))]),filename)
+					c.start_flow(working_flow)
+					c.move_abs_z(target,c.PLLDConfig.stem_vel, c.PLLDConfig.stem_acc)
+					#mainLLD.findSurface(target, lowSpeed = lowSpeed)
+					#back_write(wraps([str(m)+','+str(working_flow)+','+str(Dry.pressLimit)+','+str(c.p.read_pressure_sensor(1))+','+str(Dry.pressLimit-c.p.read_pressure_sensor(1))]),filename)
 					time.sleep(0.2)
-					if lowSpeed: LLD.lowSpeed_flow += roughIncre
-					else: c.PLLDConfig.flow += roughIncre
+					if lowSpeed: LLD.lowSpeed_flow += softIncre
+					else: c.PLLDConfig.flow += softIncre
 					c.move_abs_z(safe, 100,200)
 					wawik(1,'D7',target-15)
-				finalFlow = working_flow - softIncre
+				finalFlow = original_flow + (n-2)*roughIncre + (m-1)*softIncre
 			else:
 				finalFlow = working_flow
 				printr('FLOW IS TOO HIGH!')
@@ -2955,7 +3003,6 @@ class mainLLT():
 					200:40,
 					1000:80}
 		maxZ = z-tipLength[tip]
-		print('z nih',z,maxZ)
 		if tip == 1000:
 			maxZ = -135
 		zpack, respack, decreasePack = [0],[0],[0]
@@ -2963,7 +3010,7 @@ class mainLLT():
 		n = 0
 		while (z >= maxZ and not saturated):
 			z -= 0.5
-			c.move_abs_z(z,10,1000)
+			c.move_abs_z(z,15,1000)
 			pos = c.p.get_motor_pos(0)/100.0; zpack.append(pos)
 			res = c.p.read_dllt_sensor(); respack.append(res)
 			decRate = res-respack[-2]; decreasePack.append(decRate)
@@ -2972,6 +3019,7 @@ class mainLLT():
 					saturated = True
 					break
 			n += 1
+		print(decreasePack[-1], decreasePack[-2])
 		if saturated: print 'Resistance Saturated!'
 		else: print 'Resistance is not Saturated!'	
 		return zpack[-1], respack[-1], maxZ, saturated
@@ -3180,7 +3228,19 @@ class PvR(): # Pressure vs Resistance First Triggered
 		else:
 			print 'No PvR have ran'
 
-
+def gas(flow):
+	wawik(1,'D7',-80)
+	#align(1,'D7',0)
+	c.start_flow(flow)
+	c.move_abs_z(-45,100,200)
+	c.start_logger()
+	time.sleep(1)
+	c.move_abs_z(-65,15,1000)
+	time.sleep(2)
+	c.move_abs_z(-45,15,1000)
+	time.sleep(1)
+	c.stop_logger()
+	c.abort_flow()
 
 # ALWAYS RE-SETUP EVERY TIME CHANNEL IS CHANGED
 def hi_mode(chipNumber):

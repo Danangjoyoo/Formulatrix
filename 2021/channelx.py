@@ -251,7 +251,7 @@ def thread_logger(motorm=0,sensorm=6):
 	#p.set_log_items(0,SensorMask.PressureSensor1)
 	p.start_log()
 	t = time.time()
-	file_name = 'data_log_' + str(PIPETTE_ADDRESS) + '_' + time.strftime('%Y%m%d%H%M%S', time.localtime(t)) + '.csv'
+	file_name = 'Lognya\data_log_' + str(PIPETTE_ADDRESS) + '_' + time.strftime('%Y%m%d%H%M%S', time.localtime(t)) + '.csv'
 	loggername = file_name
 	with open(file_name, 'w') as f:
 		header = "Tick, "
@@ -298,7 +298,7 @@ def thread_logger(motorm=0,sensorm=6):
 			line += "\n"
 			f.write(line)
 		f.close()
-	call(["..\Include\log_plot.exe", file_name])
+	#call(["..\Include\log_plot.exe", file_name])
 
 #------- End Logger ---------------
 
@@ -1846,6 +1846,8 @@ def setUp_plld(lowSpeed=False):
 	else: # normal PLLD
 		p.set_abort_config(AbortID.NormalAbortZ,0,pressure+current+collision,collision,0)
 		p.set_abort_config(AbortID.HardZ,0,collision+wlld+current,collision+wlld,0)
+	sensorCatcher1 = PostTrigger('s1')
+	sensorCatcher1.start()
 	return p_ref
 
 def setUp_wlld():
@@ -1864,7 +1866,42 @@ def setUp_wlld():
 	#p.set_abort_config(AbortID.TouchOffOut,0,current+collision+wlld,collision+wlld,0)
 	p.set_abort_config(AbortID.HardZ,0,current+collision+wlld,collision+wlld,0)
 	p.set_abort_config(AbortID.ValveClose,0,current+collision+wlld,collision+wlld,0)
+	sensorCatcher2 = PostTrigger('s2')
+	sensorCatcher2.start()
 	return p.read_dllt_sensor()-PLLDConfig.resThres
+
+postPress = None
+postRes = None
+class PostTrigger(threading.Thread):
+	def __init__(self,name):
+		threading.Thread.__init__(self)
+		self.name = name
+		self.postPress = None
+		self.postRes = None
+		self.checkStat = False
+
+	def run(self):
+		print 'Post Press-Res Catcher Started..'
+		self.checkingPostValue()
+		print 'THIS IS THE TRUE...{}, {}'.format(self.postPress, self.postRes)
+		globals()['postPress'] = self.postPress
+		globals()['postRes'] = self.postRes
+		print 'Post Press-Res Catcher Stopped..'
+
+	def checkingPostValue(self):
+		self.checkStat = True
+		globals()['postPress'] = None
+		globals()['postRes'] = None
+		while self.checkStat:
+			if get_triggered_input(AbortID.NormalAbortZ) or get_triggered_input(AbortID.HardZ):
+				self.postPress = p.read_pressure_sensor(1)
+				self.postRes = p.read_dllt_sensor()
+				self.checkStat = False
+				break
+
+	def terminate(self):
+		self.checkStat = False
+
 
 def setUp_dllt():
 	p.set_motor_tracking_running(False)

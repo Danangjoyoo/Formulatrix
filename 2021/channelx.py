@@ -1741,7 +1741,7 @@ class PLLDConfig():
 	stem_acc = 1000
 	colThres = 100
 	currentThresh = 1.3
-	pressThres = 2.7 #4.5
+	pressThres = 4.5#2.7 #4.5
 	resThres = 500
 	freq = 500
 	freq_delay = 250/1000.0

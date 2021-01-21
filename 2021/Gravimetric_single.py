@@ -1,7 +1,7 @@
 import FloDeck as deck
 import pregx as pr
 import channelx as c
-import time, math
+import time, math, sys
 from tabulate import tabulate
 import pandas as pd
 from pandas import read_csv
@@ -2039,6 +2039,7 @@ class Plotter():
 
 	#==================== REALTIME PLOTTER ======================
 	plotStat = False
+	func = None
 	init_t = time.time()
 	threads = []
 	init_travel = 0
@@ -2078,10 +2079,9 @@ class Plotter():
 			Plotter.threads.append(thread1)
 			time.sleep(0.1)
 			# set sensor yang mau diplot <nama sensor>=True di parameter
-			Plotter.plot_realtime(p1=True,p2=True,res=True)
+			Plotter.plot_realtime(p2=True)
 			printg('Realtime Plotter Finished..')
 			Plotter.reset_realtime()
-			#thread1.join()
 		else:
 			printr('Please input function!')
 
@@ -2092,17 +2092,28 @@ class Plotter():
 			if kb.is_pressed('ctrl+p'): Plotter.plotStat = False
 			else: Plotter.plotStat = True
 			if kb.is_pressed('ctrl+='):
-				Plotter.limit += 2
+				Plotter.limit += 0.05
 			if kb.is_pressed('ctrl+-'):
-				Plotter.limit -= 2
+				Plotter.limit -= 0.05
 
 	@staticmethod
 	def raiseProcess():
 		if len(Plotter.threads) > 0:
-				Plotter.threads[0].join()
-				printy('Raising the background process to the foregound! Check at Terminal/Console/CMD!')
+				if Plotter.threads[0].isAlive():
+					printy('Raising the background process to the foregound! Please wait..')
+					printy('Check the blocking status at Terminal/Console/CMD!')
+					Plotter.threads[0].join()
+					printy(Plotter.func, 'is Raised.. now u can terminate')
+				else:
+					printr('Background is unregistered!')		
 		else:
 			printr('Background is unregistered!')
+		Plotter.threads = []
+
+	@staticmethod
+	def forceKill():
+		printr('FORCE KILL MAIN APP')
+		sys.exit()
 
 	@staticmethod
 	def reset_realtime():
@@ -2274,6 +2285,8 @@ class mainLLD():
 			self.resLimit = None
 			self.press_trig = False
 			self.res_trig = False
+			self.NormalZ_trig = None
+			self.HardZ_trig = None
 			self.trigtime_p = 0
 			self.trigtime_r = 0
 			self.preRead_freq = 120
@@ -2300,6 +2313,8 @@ class mainLLD():
 			self.press_trig = False
 			self.pressLimit = None
 			self.res_trig = False
+			self.NormalZ_trig = None
+			self.HardZ_trig = None
 			self.resLimit = None
 			self.saturated = False
 
@@ -2475,29 +2490,31 @@ class mainLLD():
 			Wet.resLimit = c.setUp_wlld()
 		init_res = c.p.read_dllt_sensor()
 		print 'move', c.p.get_motor_pos(0)
-		triggerOnZ, triggerOnHZ = None, None
 		c.move_abs_z(depth,stem_vel,stem_acc) # max move but will stop when plld triggered"
 		if str.lower(lld) == 'dry':
 			if not lowSpeed:
 				if c.get_triggered_input(c.AbortID.NormalAbortZ) == 1 << c.InputAbort.PressureSensor2:
-					triggerOnZ = c.check_triggered_input(c.AbortID.NormalAbortZ)
 					Dry.press_trig = True
 				if c.get_triggered_input(c.AbortID.HardZ) == 1 << c.InputAbort.LiquidLevelSensor:
-					triggerOnHZ = c.check_triggered_input(c.AbortID.HardZ)
 					Dry.res_trig = True
+				Dry.NormalZ_trig = c.check_triggered_input(c.AbortID.NormalAbortZ)
+				Dry.HardZ_trig = c.check_triggered_input(c.AbortID.HardZ)
 			else:
-				triggerOnHZ = c.check_triggered_input(c.AbortID.HardZ)
 				if c.get_triggered_input(c.AbortID.HardZ) == 1 << c.InputAbort.PressureSensor2:
 					Dry.press_trig = True
 				elif c.get_triggered_input(c.AbortID.HardZ) == 1 << c.InputAbort.LiquidLevelSensor:
 					Dry.res_trig = True
+				Dry.HardZ_trig = c.check_triggered_input(c.AbortID.HardZ)
+			LLD.NormalZ_trig = Dry.NormalZ_trig
+			LLD.HardZ_trig = Dry.HardZ_trig
 		elif str.lower(lld) == 'wet':
 			if c.get_triggered_input(c.AbortID.HardZ) == 1 << c.InputAbort.LiquidLevelSensor:
-				triggerOnHZ = c.check_triggered_input(c.AbortID.HardZ)
 				Wet.res_trig = True
+			Wet.HardZ_trig = c.check_triggered_input(c.AbortID.HardZ)			
+			LLD.HardZ_trig = Wet.HardZ_trig
+		printr('Trigger check: NormalZ: {} | HardZ: {}'.format(LLD.NormalZ_trig, LLD.HardZ_trig))
 		postPress = c.p.read_pressure_sensor(1)
 		postRes = c.p.read_dllt_sensor()
-		printr('Trigger check: NormalZ: {} | HardZ: {}'.format(triggerOnZ, triggerOnHZ))
 		print 'done move',  c.p.get_motor_pos(0)
 		# after the motor stopped, set every process done
 		c.abort_flow()
@@ -2515,8 +2532,8 @@ class mainLLD():
 		c.clear_abort_config(c.AbortID.ValveClose)
 		zero = c.p.get_motor_pos(0)/100.0
 		print 'Checking surfaceFound..'
-		print 'pressureCheck:\t limit: {}\t | postpress: {}'.format(Dry.pressLimit, postPress)
-		print 'resCheck:\t limit: {}\t\t | postRes: {}'.format(init_res- c.PLLDConfig.resThres, postRes)
+		print 'pressureCheck:\t limit: {}\t | postpress: {}'.format(Dry.pressLimit, c.postPress)
+		print 'resCheck:\t limit: {}\t\t | postRes: {}'.format(init_res- c.PLLDConfig.resThres, c.postRes)
 		if str.lower(lld) == 'dry':
 			if Dry.press_trig:
 				LLD.surfaceFound = True
@@ -2562,12 +2579,12 @@ class mainLLD():
 				pickpos = kw[2]
 
 			# z picktip
-			pick_targets 	= {20	:-134, 	200		:-125, 	1000	:-117}	
-			# z saat pindah labware biar ga nabrak timbangan	
+			pick_targets 	= {20	:-134, 	200		:-125, 	1000	:-117}
 			evades 			= {20	:3,		200		:3,		1000	:0}	
-			# aspirate lowest pos	
 			targets 		= {20 	:-110, 	200 	:-100, 	1000	:-60}
+			#targets 		= {20 	:-120, 	200 	:-110, 	1000	:-70}
 			safes 			= {20	:-55,	200		:-35,	1000	:0}
+			# using plateReader
 
 			deck.setZeroDeckMode(tip)
 			next_pickpos = pickpos
@@ -2599,6 +2616,8 @@ class mainLLD():
 				'Res Limit'			+','+
 				'Press Trig'		+','+
 				'Res Trig'			+','+
+				'NormalZ Trigger'	+','+
+				'HardZ Trigger'		+','+
 				'LLT Res Freq'		+','+
 				'ZeroRes'			+','+
 				'dRes(init-zero)'	+','+
@@ -2748,7 +2767,7 @@ class mainLLD():
 							# DRY DATA PUSH
 							n += 1
 							wrapper = '{}'
-							for i in range(42-1): wrapper += ',{}' 
+							for i in range(44-1): wrapper += ',{}' 
 							back_write(wraps([wrapper.format(
 								x, n,
 								dates,
@@ -2768,6 +2787,8 @@ class mainLLD():
 								Dry.resLimit,
 								Dry.press_trig,
 								Dry.res_trig,
+								Dry.NormalZ_trig,
+								Dry.HardZ_trig,
 								Dry.LLT_freq,
 								Dry.res,
 								res_init - Dry.res,
@@ -2796,7 +2817,7 @@ class mainLLD():
 							# WET DATA PUSH
 							n += 1
 							wrapper = '{}'
-							for i in range(42-1): wrapper += ',{}' 
+							for i in range(44-1): wrapper += ',{}' 
 							back_write(wraps([wrapper.format(
 								x, n,
 								dates,
@@ -2816,6 +2837,8 @@ class mainLLD():
 								Wet.resLimit,
 								Wet.press_trig,
 								Wet.res_trig,
+								Wet.NormalZ_trig,
+								Wet.HardZ_trig,
 								Wet.LLT_freq,
 								Wet.res,
 								res_init - Wet.res,
@@ -2850,77 +2873,24 @@ class mainLLD():
 				align(0, next_pickpos, pick_target+50)
 
 		@staticmethod
-		def flowReferencing(tip, roughIncre=10, softIncre=1, lowSpeed = False):
+		def flowReferencing(tip, flow):
+			print 'Flow : {}'.format(flow)
 			mainLLD.test.runStat = True
 			source = 'D7'
 			align(1,source,0)
-			# z picktip
-			pick_targets 	= {20	:-134, 	200		:-125, 	1000	:-117}	
-			# z saat pindah labware biar ga nabrak timbangan	
-			evades 			= {20	:3,		200		:3,		1000	:0}	
-			# aspirate lowest pos	
-			targets 		= {20 	:-110, 	200 	:-100, 	1000	:-60}
-			safes 			= {20	:-55,	200		:-35,	1000	:0}
-			#filetime = int(time.time())
-			#filename = 'Level\LLD_flowReferencing_Rough{}.csv'.format(filetime)
-			#back_write(wraps(['n'+','+'Flow'+','+'Press Limit'	+','+'P2'+','+'Press Gap']),filename)
-			c.move_abs_z(0,100,200)
-			target = targets[tip]
-			safe = safes[tip]
-			if lowSpeed: original_flow = LLD.lowSpeed_flow
-			else:  original_flow = c.PLLDConfig.flow
-			c.PLLDConfig.UseDynamic = False
-			n, m, working_flow = 0, 0, 0
-			Dry.reset()
-			while (not Dry.press_trig) and mainLLD.test.runStat:
-				n += 1
-				if lowSpeed: working_flow = LLD.lowSpeed_flow
-				else: working_flow = c.PLLDConfig.flow
-				printy('Start Testing Rough:',working_flow,'uL/s')
-				c.move_abs_z(safe-45,100,200)
-				c.start_flow(working_flow)
-				c.move_abs_z(target,c.PLLDConfig.stem_vel, c.PLLDConfig.stem_acc)
-				#mainLLD.findSurface(target, lowSpeed = lowSpeed)
-				#back_write(wraps([str(n)+','+str(working_flow)+','+str(Dry.pressLimit)+','+str(c.p.read_pressure_sensor(1))+','+str(Dry.pressLimit-c.p.read_pressure_sensor(1))]),filename)
-				time.sleep(0.2)
-				if lowSpeed: LLD.lowSpeed_flow += roughIncre
-				else: c.PLLDConfig.flow += roughIncre
-				c.move_abs_z(safe, 100,200)
-				wawik(1,source,target-15)
-				if working_flow >= 200:
-					break
-			Dry.reset()
-			if working_flow <= 200:
-				if lowSpeed: 
-					LLD.lowSpeed_flow = original_flow + (n-2)*roughIncre + softIncre
-				else:
-					c.PLLDConfig.flow = original_flow + (n-2)*roughIncre + softIncre
-				#filename = 'Level\LLD_flowReferencing_Soft{}.csv'.format(filetime)
-				#back_write(wraps(['n'+','+'Flow'+','+'Press Limit'+','+'P2'+','+'Press Gap']),filename)
-				while (not Dry.press_trig) and mainLLD.test.runStat:
-					m += 1
-					if lowSpeed: working_flow = LLD.lowSpeed_flow
-					else: working_flow = c.PLLDConfig.flow
-					printy('Start Testing Soft:',working_flow,'uL/s')
-					c.move_abs_z(safe-45,100,200)
-					c.start_flow(working_flow)
-					c.move_abs_z(target,c.PLLDConfig.stem_vel, c.PLLDConfig.stem_acc)
-					#mainLLD.findSurface(target, lowSpeed = lowSpeed)
-					#back_write(wraps([str(m)+','+str(working_flow)+','+str(Dry.pressLimit)+','+str(c.p.read_pressure_sensor(1))+','+str(Dry.pressLimit-c.p.read_pressure_sensor(1))]),filename)
-					time.sleep(0.2)
-					if lowSpeed: LLD.lowSpeed_flow += softIncre
-					else: c.PLLDConfig.flow += softIncre
-					c.move_abs_z(safe, 100,200)
-					wawik(1,'D7',target-15)
-				finalFlow = original_flow + (n-2)*roughIncre + (m-1)*softIncre
-			else:
-				finalFlow = working_flow
-				printr('FLOW IS TOO HIGH!')
-			if lowSpeed: LLD.lowSpeed_flow = original_flow 
-			else:  c.PLLDConfig.flow = original_flow
-			c.PLLDConfig.UseDynamic = True
-			printg('Final Flow:',finalFlow,'uL/s')
-			return finalFlow
+			#align(1,'D7',0)
+			c.abort_flow()
+			c.start_flow(flow)
+			c.move_abs_z(-10,100,200)
+			time.sleep(1)
+			c.start_logger()
+			c.move_abs_z(-65,15,1000)
+			time.sleep(2)
+			c.stop_logger()
+			c.move_abs_z(-10,15,1000)
+			time.sleep(1)
+			c.abort_flow()
+			wawik(1,'D7',-80)
 
 lld = mainLLD()
 
@@ -3227,20 +3197,6 @@ class PvR(): # Pressure vs Resistance First Triggered
 					return 'Res Sensor', PvR.lastTestObj.trigtime_r
 		else:
 			print 'No PvR have ran'
-
-def gas(flow):
-	wawik(1,'D7',-80)
-	#align(1,'D7',0)
-	c.start_flow(flow)
-	c.move_abs_z(-45,100,200)
-	c.start_logger()
-	time.sleep(1)
-	c.move_abs_z(-65,15,1000)
-	time.sleep(2)
-	c.move_abs_z(-45,15,1000)
-	time.sleep(1)
-	c.stop_logger()
-	c.abort_flow()
 
 # ALWAYS RE-SETUP EVERY TIME CHANNEL IS CHANGED
 def hi_mode(chipNumber):

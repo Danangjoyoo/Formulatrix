@@ -2875,22 +2875,27 @@ class mainLLD():
 		@staticmethod
 		def flowReferencing(tip, flow):
 			print 'Flow : {}'.format(flow)
+			targets = {20:-125, 200:-115, 1000:-65}
+			target = targets[tip]
 			mainLLD.test.runStat = True
 			source = 'D7'
 			align(1,source,0)
 			#align(1,'D7',0)
 			c.abort_flow()
 			c.start_flow(flow)
-			c.move_abs_z(-10,100,200)
+			c.move_abs_z(target+55,100,200)
 			time.sleep(1)
 			c.start_logger()
-			c.move_abs_z(-65,15,1000)
+			z1 = c.p.get_motor_pos(0)
+			c.move_abs_z(target,15,1000)
+			z2 = c.p.get_motor_pos(0)
 			time.sleep(2)
 			c.stop_logger()
-			c.move_abs_z(-10,15,1000)
+			c.move_abs_z(target+55,15,1000)
 			time.sleep(1)
 			c.abort_flow()
-			wawik(1,'D7',-80)
+			wawik(1,'D7',target-20)
+
 
 lld = mainLLD()
 

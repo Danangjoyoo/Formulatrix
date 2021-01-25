@@ -224,7 +224,7 @@ def chunks(l, n):
 	n = max(1, n)
 	return [l[i:i + n] for i in range(0, len(l), n)]
 
-def start_logger(motorm=256,sensorm=6):
+def start_logger(motorm=256,sensorm=22):
 	global thread_run
 	thread_run = True
 	thread1 = threading.Thread(name='logger 1', target=thread_logger, args=(motorm,sensorm))
@@ -298,7 +298,7 @@ def thread_logger(motorm=0,sensorm=6):
 			line += "\n"
 			f.write(line)
 		f.close()
-	#call(["..\Include\log_plot.exe", file_name])
+	call(["..\Include\log_plot.exe", file_name])
 
 #------- End Logger ---------------
 
@@ -1741,7 +1741,7 @@ class PLLDConfig():
 	stem_acc = 1000
 	colThres = 100
 	currentThresh = 1.3
-	pressThres = 4.5#2.7 #4.5
+	pressThres = 4.5 #2.7 
 	resThres = 500
 	freq = 500
 	freq_delay = 250/1000.0
@@ -1839,13 +1839,14 @@ def setUp_plld(lowSpeed=False):
 	pressure = 1<<InputAbort.PressureSensor2
 	current = 1 <<InputAbort.CurrentMotorZ
 	wlld = 1 << InputAbort.LiquidLevelSensor
-	#p.set_abort_config(AbortID.TouchOffOut,0,current+collision+wlld,collision+wlld,0)
+	p.set_abort_config(AbortID.TouchOffOut,0,current+collision+wlld,collision+wlld,0)
 	p.set_abort_config(AbortID.ValveClose,0,pressure+current+collision,collision,0)
 	if lowSpeed:
 		p.set_abort_config(AbortID.HardZ,0,pressure+collision+wlld+current,collision+wlld,0)
 	else: # normal PLLD
+		#p.set_abort_config(AbortID.HardZ,0,pressure+collision+current,collision,0)
 		p.set_abort_config(AbortID.NormalAbortZ,0,pressure+current+collision,collision,0)
-		p.set_abort_config(AbortID.HardZ,0,collision+wlld+current,collision+wlld,0)
+		#p.set_abort_config(AbortID.HardZ,0,collision+wlld+current,collision+wlld,0)
 	sensorCatcher1 = PostTrigger('s1')
 	sensorCatcher1.start()
 	return p_ref
@@ -1863,7 +1864,7 @@ def setUp_wlld():
 	collision = 1<<InputAbort.CollisionTouch
 	current = 1 <<InputAbort.CurrentMotorZ
 	wlld = 1 << InputAbort.LiquidLevelSensor
-	#p.set_abort_config(AbortID.TouchOffOut,0,current+collision+wlld,collision+wlld,0)
+	p.set_abort_config(AbortID.TouchOffOut,0,current+collision+wlld,collision+wlld,0)
 	p.set_abort_config(AbortID.HardZ,0,current+collision+wlld,collision+wlld,0)
 	p.set_abort_config(AbortID.ValveClose,0,current+collision+wlld,collision+wlld,0)
 	sensorCatcher2 = PostTrigger('s2')
@@ -1897,9 +1898,16 @@ class PostTrigger(threading.Thread):
 				self.postPress = p.read_pressure_sensor(1)
 				self.postRes = p.read_dllt_sensor()
 				self.checkStat = False
+				break
 
 	def terminate(self):
 		self.checkStat = False
+	
+	@staticmethod
+	def terminateAll():
+		for i in threading.enumerate():
+			try: i.terminate()
+			except: pass
 
 
 def setUp_dllt():

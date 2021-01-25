@@ -2518,11 +2518,12 @@ class mainLLD():
 		print 'done move',  c.p.get_motor_pos(0)
 		# after the motor stopped, set every process done
 		c.abort_flow()
-		Average_done = True
-		Tare_done = True
-		Calibrate_done = True
-		Count_volume_done = True
-		Pipetting_done = True
+		c.Average_done = True
+		c.Tare_done = True
+		c.Calibrate_done = True
+		c.Count_volume_done = True
+		c.Pipetting_done = True
+		c.move_done = True
 		# clear all abort
 		print 'press-res trig:',Dry.press_trig, Dry.res_trig
 		pos =  c.get_motor_pos()
@@ -2551,7 +2552,8 @@ class mainLLD():
 				Wet.surfaceFound = True
 				printb('Surface found at Wet')
 			else:
-				printy("Resistance Limit isn't reached at Wet")				
+				printy("Resistance Limit isn't reached at Wet")		
+		c.PostTrigger.terminateAll()		
 		return zero
 
 	# LLD TEST / TIP RECIPROCATING
@@ -3202,6 +3204,27 @@ class PvR(): # Pressure vs Resistance First Triggered
 					return 'Res Sensor', PvR.lastTestObj.trigtime_r
 		else:
 			print 'No PvR have ran'
+
+def gas():
+	flows, zrefs, zdets = [], [], []
+	for flow in range(10,160,10):
+		anchorFlow = c.PLLDConfig.flow
+		c.PLLDConfig.flow = flow
+		c.move_abs_z(-40,100,200)
+		zref = lld.findSurface(-70, lowSpeed=True)
+		wawik(1,'D7',-60)
+		#c.start_logger()
+		zdet = lld.findSurface(-70)
+		#c.stop_logger()
+		print 'PLLD FLOW', c.PLLDConfig.flow
+		print 'zref:',zref,'| zdet:',zdet,'| flow:',flow
+		flows.append(flow)
+		zrefs.append(zref)
+		zdets.append(zdet)
+		c.PLLDConfig.flow = anchorFlow
+		wawik(1,'D7',-60)
+	for i, flow in enumerate(flows): print 'flow:',flow,'| zref:',zrefs[i],'| zdet:',zdets[i]
+
 
 # ALWAYS RE-SETUP EVERY TIME CHANNEL IS CHANGED
 def hi_mode(chipNumber):

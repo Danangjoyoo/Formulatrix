@@ -1844,9 +1844,9 @@ def setUp_plld(lowSpeed=False):
 	if lowSpeed:
 		p.set_abort_config(AbortID.HardZ,0,pressure+collision+wlld+current,collision+wlld,0)
 	else: # normal PLLD
-		#p.set_abort_config(AbortID.HardZ,0,pressure+collision+current,collision,0)
+		#p.set_abort_config(AbortID.HardZ,0,pressure+collision+current,collision,0) #for test p1000
 		p.set_abort_config(AbortID.NormalAbortZ,0,pressure+current+collision,collision,0)
-		#p.set_abort_config(AbortID.HardZ,0,collision+wlld+current,collision+wlld,0)
+		p.set_abort_config(AbortID.HardZ,0,collision+wlld+current,collision+wlld,0)
 	sensorCatcher1 = PostTrigger('s1')
 	sensorCatcher1.start()
 	return p_ref
@@ -2082,7 +2082,7 @@ class PicktipConfig:
 	picktipRetractVel = 100
 	picktipSafeRetractDist = 60
 	waitPosOffset = 5
-	delayBeforeValidate = 100/1000
+	delayBeforeValidate = 100/1000.0
 	abortColThres = 100
 	firstCurrentThres = 2.5
 	secondCurrentThres = 2
@@ -2090,64 +2090,68 @@ class PicktipConfig:
 	tipPosTolerance = 2.8
 	thirdCurrentThres = 1
 	freq = 1500
-	freq_delay = 250/1000
+	freq_delay = 250/1000.0
 	folErrorLimit = 1000
 	targetReachedWindow = 100
 	flow = 150
 	collisionCompressTolerance = 4
-	validColMin = 1000
+	validColMin = 500
 	validColMax = 3000
 	validResMin = 50
 	validResMax = 12000
 	validSampleNum = 5
-	validSamplingDelay = 20
+	validSamplingDelay = 20/1000.0
 	validPress2Limit = {20 : {'min':-6.0, 'max':20.0},
 						200: {'min':-6.0, 'max':15.0}}
 
 def setUp_picktip(targetZ, safeZ, tip=20):
 	p.get_fol_error_config(0)
 	p.set_fol_error_config(0,True,PicktipConfig.folErrorLimit)
-	p.get_target_reached_parameter(0)
-	p.set_target_reached_parameter(0, PicktipConfig.targetReachedWindow, 0)
+	p.get_target_reached_params(0)
+	p.set_target_reached_params(0, PicktipConfig.targetReachedWindow, 0)
 	p.start_regulator_mode(2,PicktipConfig.flow,1,0,0)
-	set_freq(PicktipConfig.freq,freq_delay)
+	set_freq(PicktipConfig.freq,PicktipConfig.freq_delay)
 	targetZ -= PicktipConfig.collisionCompressTolerance
 	firstmove, secondmove = False, False
 	firstmove = picktip_firstmove(targetZ)
+	print 'firstmove', firstmove
 	if firstmove:
 		secondmove = picktip_secondmove(safeZ,tip)
 		if secondmove: return True
 	else: return False
 
 def picktip_firstmove(targetZ):
-	colThres = c.p.read_dllt_sensor() - PicktipConfig.abortColThres
+	colThres = p.read_dllt_sensor() - PicktipConfig.abortColThres
 	p.set_abort_threshold(InputAbort.CollisionTouch, colThres)
 	p.set_abort_threshold(InputAbort.CurrentMotorZ, PicktipConfig.firstCurrentThres)
 	collision = 1 << InputAbort.CollisionTouch
 	current = 1 << InputAbort.CurrentMotorZ
-	HardZ_triggerOnAll = False
+	HardZ_triggerOnAll = 1
 	HardZ_abortDelay = 0
 	p.set_abort_config(AbortID.HardZ,HardZ_triggerOnAll,current+collision,collision,HardZ_abortDelay)
-	if move_abs_z(targetZ*stem_eng, PicktipConfig.firstMoveVel*stem_eng, PicktipConfig.firstMoveAcc*stem_eng):
-		clear_abort_config(AbortID.HardZ)
+	print 'kuy', targetZ
+	move_abs_z(targetZ, PicktipConfig.firstMoveVel, PicktipConfig.firstMoveAcc)
+	print 'kuy2'
 	status = p.get_triggered_inputs(AbortID.HardZ)
+	clear_abort_config(AbortID.HardZ)
 	if status == (1 << InputAbort.CollisionTouch): return True		
 	else: return False
 
 def picktip_secondmove(targetZ,tip=20):
+	print('Second Move')
 	p.set_abort_threshold(InputAbort.CurrentMotorZ, PicktipConfig.secondCurrentThres)
 	current = 1 << InputAbort.CurrentMotorZ
 	HardZ_triggerOnAll = False
 	HardZ_abortDelay = 0
 	p.set_abort_config(AbortID.HardZ, HardZ_triggerOnAll, current, current, HardZ_abortDelay)
-	if move_abs_z(targetZ*stem_eng,PicktipConfig.secondMoveVel*stem_eng,PicktipConfig.secondMoveAcc*stem_eng):
+	if move_abs_z(targetZ,PicktipConfig.secondMoveVel,PicktipConfig.secondMoveAcc):
 		clear_abort_config(AbortID.HardZ)
 	status = p.get_triggered_inputs(AbortID.HardZ)
 	if status == (1 << InputAbort.CurrentMotorZ):
 		clear_abort_config(AbortID.HardZ)
 		pos = p.get_motor_pos(0)/stem_eng
 		targetRetractPos = pos + PicktipConfig.picktipSafeRetractDist
-		move_abs_z(targetRetractPos, PicktipConfig.picktipRetractVel*stem_eng, PicktipConfig.picktipRetractAccel*stem_eng)
+		move_abs_z(targetRetractPos, PicktipConfig.picktipRetractVel, PicktipConfig.picktipRetractAccel)
 	clear_abort_config(AbortID.HardZ)
 	pos = p.get_motor_pos(0)/stem_eng
 	targetRetractPos = pos + PicktipConfig.picktipSafeRetractDist
@@ -2155,11 +2159,13 @@ def picktip_secondmove(targetZ,tip=20):
 	press2, col, res = 0,0,0
 	p2Valid, colValid, resValid = False, False, False
 	for i in range(PicktipConfig.validSampleNum):
-		press2 += p.read_pressure_sensor(2)
+		press2 += p.read_pressure_sensor(1)
 		col += p.read_collision_sensor()
 		res += p.read_dllt_sensor()
+		print press2, col, res
 		time.sleep(PicktipConfig.validSamplingDelay)
 	global ATM_pressure
+	print 'press2 col res ::',press2, col, res
 	press2 /= PicktipConfig.validSampleNum
 	p2min, p2max = PicktipConfig.validPress2Limit[tip]['min'], PicktipConfig.validPress2Limit[tip]['max']
 	delta_press = press2 - ATM_pressure
@@ -2168,6 +2174,7 @@ def picktip_secondmove(targetZ,tip=20):
 	colValid = PicktipConfig.validColMin <= col <= PicktipConfig.validColMax
 	res /= PicktipConfig.validSampleNum
 	resValid = PicktipConfig.validResMin <= res <= PicktipConfig.validResMax
+	print"p2: {}, col: {}, res: {}".format(delta_press,col,res)
 	print"p2Valid: {}, colValid: {}, resValid: {}".format(p2Valid,colValid,resValid)
 	if p2Valid and colValid and resValid: return True
 	else: return False

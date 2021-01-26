@@ -306,7 +306,6 @@ def picktip(pos='None',target=P200_picktip_z,safe=-10,userinput=0,nextPosOnly=Fa
 		maxtry=3
 		n = 1
 		if pos in deck.wellname:
-			#while (False in status):
 			while(not status):
 				if n > 1:
 					eject()
@@ -330,7 +329,6 @@ def picktip(pos='None',target=P200_picktip_z,safe=-10,userinput=0,nextPosOnly=Fa
 		   lastpos = 'NONE'
 		#c.move_abs_z(-40,100,750)
 		#nextpos = deck.wellname[deck.wellname.index(pos)+1]
-		#return [(not (False in status)),nextpos,lastpos]
 		return [status,nextpos,lastpos]
 	else:
 		if pos in deck.wellname:
@@ -2584,7 +2582,7 @@ class mainLLD():
 				pickpos = kw[2]
 
 			# z picktip
-			pick_targets 	= {20	:-130, 	200		:-120, 	1000	:-117}
+			pick_targets 	= {20	:-132, 	200		:-122, 	1000	:-117}
 			evades 			= {20	:3,		200		:3,		1000	:0}	
 			targets 		= {20 	:-110, 	200 	:-100, 	1000	:-60}
 			#targets 		= {20 	:-120, 	200 	:-110, 	1000	:-70}

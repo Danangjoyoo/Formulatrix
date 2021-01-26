@@ -2111,12 +2111,17 @@ def setUp_picktip(targetZ, safeZ, tip=20):
 	p.set_target_reached_params(0, PicktipConfig.targetReachedWindow, 0)
 	p.start_regulator_mode(2,PicktipConfig.flow,1,0,0)
 	set_freq(PicktipConfig.freq,PicktipConfig.freq_delay)
+	tare_pressure()
+	init_res = 0
+	for i in range(PicktipConfig.validSampleNum):
+		init_res += p.read_dllt_sensor()
+	init_res /= PicktipConfig.validSampleNum
 	targetZ -= PicktipConfig.collisionCompressTolerance
 	firstmove, secondmove = False, False
 	firstmove = picktip_firstmove(targetZ)
 	print 'firstmove', firstmove
 	if firstmove:
-		secondmove = picktip_secondmove(safeZ,tip)
+		secondmove = picktip_secondmove(safeZ,tip,init_res)
 		if secondmove: return True
 	else: return False
 
@@ -2137,7 +2142,7 @@ def picktip_firstmove(targetZ):
 	if status == (1 << InputAbort.CollisionTouch): return True		
 	else: return False
 
-def picktip_secondmove(targetZ,tip=20):
+def picktip_secondmove(targetZ,tip=20,init_res=p.read_dllt_sensor()):
 	print('Second Move')
 	p.set_abort_threshold(InputAbort.CurrentMotorZ, PicktipConfig.secondCurrentThres)
 	current = 1 << InputAbort.CurrentMotorZ
@@ -2156,6 +2161,7 @@ def picktip_secondmove(targetZ,tip=20):
 	pos = p.get_motor_pos(0)/stem_eng
 	targetRetractPos = pos + PicktipConfig.picktipSafeRetractDist
 	time.sleep(PicktipConfig.delayBeforeValidate)
+	# VALIDATION PHASE
 	press2, col, res = 0,0,0
 	p2Valid, colValid, resValid = False, False, False
 	for i in range(PicktipConfig.validSampleNum):
@@ -2173,6 +2179,7 @@ def picktip_secondmove(targetZ,tip=20):
 	col /= PicktipConfig.validSampleNum
 	colValid = PicktipConfig.validColMin <= col <= PicktipConfig.validColMax
 	res /= PicktipConfig.validSampleNum
+	res = init_res - res
 	resValid = PicktipConfig.validResMin <= res <= PicktipConfig.validResMax
 	print"p2: {}, col: {}, res: {}".format(delta_press,col,res)
 	print"p2Valid: {}, colValid: {}, resValid: {}".format(p2Valid,colValid,resValid)

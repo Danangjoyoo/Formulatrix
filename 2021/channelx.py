@@ -1839,7 +1839,7 @@ def setUp_plld(lowSpeed=False):
 	pressure = 1<<InputAbort.PressureSensor2
 	current = 1 <<InputAbort.CurrentMotorZ
 	wlld = 1 << InputAbort.LiquidLevelSensor
-	p.set_abort_config(AbortID.TouchOffOut,0,current+collision+wlld,collision+wlld,0)
+	#p.set_abort_config(AbortID.TouchOffOut,0,current+collision+wlld,collision+wlld,0)
 	p.set_abort_config(AbortID.ValveClose,0,pressure+current+collision,collision,0)
 	if lowSpeed:
 		p.set_abort_config(AbortID.HardZ,0,pressure+collision+wlld+current,collision+wlld,0)
@@ -1864,7 +1864,7 @@ def setUp_wlld():
 	collision = 1<<InputAbort.CollisionTouch
 	current = 1 <<InputAbort.CurrentMotorZ
 	wlld = 1 << InputAbort.LiquidLevelSensor
-	p.set_abort_config(AbortID.TouchOffOut,0,current+collision+wlld,collision+wlld,0)
+	#p.set_abort_config(AbortID.TouchOffOut,0,current+collision+wlld,collision+wlld,0)
 	p.set_abort_config(AbortID.HardZ,0,current+collision+wlld,collision+wlld,0)
 	p.set_abort_config(AbortID.ValveClose,0,current+collision+wlld,collision+wlld,0)
 	sensorCatcher2 = PostTrigger('s2')
@@ -1884,10 +1884,10 @@ class PostTrigger(threading.Thread):
 	def run(self):
 		print 'Post Press-Res Catcher Started..'
 		self.checkingPostValue()
-		print 'THIS IS THE TRUE...{}, {}'.format(self.postPress, self.postRes)
 		globals()['postPress'] = self.postPress
 		globals()['postRes'] = self.postRes
-		print 'Post Press-Res Catcher Stopped..'
+		#print 'THIS IS THE TRUE...{}, {}'.format(self.postPress, self.postRes)
+		#print 'Post Press-Res Catcher Stopped..'
 
 	def checkingPostValue(self):
 		self.checkStat = True
@@ -1895,6 +1895,7 @@ class PostTrigger(threading.Thread):
 		globals()['postRes'] = None
 		while self.checkStat:
 			if get_triggered_input(AbortID.NormalAbortZ) or get_triggered_input(AbortID.HardZ):
+				print 'HARDDDD',check_triggered_input(AbortID.HardZ)
 				self.postPress = p.read_pressure_sensor(1)
 				self.postRes = p.read_dllt_sensor()
 				self.checkStat = False
@@ -2168,7 +2169,6 @@ def picktip_secondmove(targetZ,tip=20,init_res=p.read_dllt_sensor()):
 		press2 += p.read_pressure_sensor(1)
 		col += p.read_collision_sensor()
 		res += p.read_dllt_sensor()
-		print press2, col, res
 		time.sleep(PicktipConfig.validSamplingDelay)
 	global ATM_pressure
 	print 'press2 col res ::',press2, col, res

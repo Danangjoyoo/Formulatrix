@@ -551,7 +551,7 @@ def wawik(rack=0,source='A1',target=-100,Deck=2,well='B3'):
 	c.clear_motor_fault()
 	c.move_rel_z(3,5,100,0)
 	c.move_abs_z(0,100,100)
-	align(rack,source,z+10)
+	align(rack,source,z+5)
 
 def dllt_linearity():
 
@@ -2042,6 +2042,8 @@ class Plotter():
 	plotStat = False
 	func = None
 	init_t = time.time()
+	tick = 0
+	tickPack = []
 	threads = []
 	init_travel = 0
 	avgTime = []
@@ -2057,13 +2059,13 @@ class Plotter():
 	current_acc = 0
 	before_acc = 0
 	varPack = { 
-		'travel': [[], 'travel'	, False, 1],
-		'vel'	: [[], 'vel'	, False, 1],
-		'acc'	: [[], 'acc'	, False, 1],
-		'col'	: [[], 'col'	, False, 1],
-		'res'	: [[], 'res'	, False, 1],
-		'p1'	: [[], 'p1'		, False, 1],
-		'p2'	: [[], 'p2'		, False, 1] }
+		'travel': [[], 'travel'	, False, 1, 0],
+		'vel'	: [[], 'vel'	, False, 1, 0],
+		'acc'	: [[], 'acc'	, False, 1, 0],
+		'col'	: [[], 'col'	, False, 1, 0],
+		'res'	: [[], 'res'	, False, 1, 0],
+		'p1'	: [[], 'p1'		, False, 1, 0],
+		'p2'	: [[], 'p2'		, False, 1, 0] }
 
 	@staticmethod
 	def run(*args): #function, param1, param2, dll
@@ -2121,19 +2123,21 @@ class Plotter():
 		printy('Variables changed to default')
 		Plotter.plotStat = False
 		Plotter.init_t = time.time()
+		Plotter.tick = 0
+		Plotter.tickPack = []
 		Plotter.init_travel = 0
 		Plotter.avgTime = []
 		Plotter.x = []
 		Plotter.limit = 30
 		Plotter.init = True
 		Plotter.varPack = { 
-			'travel': [[], 'travel'	, False, 1],
-			'vel'	: [[], 'vel'	, False, 1],
-			'acc'	: [[], 'acc'	, False, 1],
-			'col'	: [[], 'col'	, False, 1],
-			'res'	: [[], 'res'	, False, 1],
-			'p1'	: [[], 'p1'		, False, 1],
-			'p2'	: [[], 'p2'		, False, 1] }
+			'travel': [[], 'travel'	, False, 1, 0],
+			'vel'	: [[], 'vel'	, False, 1, 0],
+			'acc'	: [[], 'acc'	, False, 1, 0],
+			'col'	: [[], 'col'	, False, 1, 0],
+			'res'	: [[], 'res'	, False, 1, 0],
+			'p1'	: [[], 'p1'		, False, 1, 0],
+			'p2'	: [[], 'p2'		, False, 1, 0] }
 
 	@staticmethod
 	def setScale(**vars): # untuk scaling chart
@@ -2141,6 +2145,14 @@ class Plotter():
 		for var in vars:
 			if var in Plotter.varPack:
 				Plotter.varPack[var][scale] = vars[var]
+				print var,'scale:', vars[var]
+
+	@staticmethod
+	def setOffset(**vars): # untuk offsetting chart
+		container, label, showStat, offset = 0, 1, 2, 4
+		for var in vars:
+			if var in Plotter.varPack:
+				Plotter.varPack[var][offset] = vars[var]
 				print var,'scale:', vars[var]
 
 	@staticmethod
@@ -2166,7 +2178,7 @@ class Plotter():
 	def autoUpdate(i):
 		t1 = time.time()
 		# Initialization =======================
-		container, label, showStat, scale = 0, 1, 2, 3
+		container, label, showStat, scale, offset = 0, 1, 2, 3, 4
 		if Plotter.init:
 			Plotter.init_t = time.time()
 			Plotter.current_t = time.time() - Plotter.init_t
@@ -2182,8 +2194,10 @@ class Plotter():
 		# set limit
 		if len(Plotter.x) >= Plotter.limit:
 			Plotter.x.pop(0)
+			Plotter.tickPack.pop(0)
 			for var in Plotter.varPack: Plotter.varPack[var][container].pop(0)
 		# movement
+		Plotter.tick += 1
 		Plotter.current_t = round(time.time() - Plotter.init_t, 2)					
 		Plotter.current_travel = abs(c.p.get_encoder_position(0))-Plotter.init_travel
 		Plotter.current_vel = (Plotter.current_travel-Plotter.before_travel)/(Plotter.current_t-Plotter.before_t)
@@ -2199,26 +2213,21 @@ class Plotter():
 		p2 = c.p.read_pressure_sensor(1)
 		# ADD DATA
 		if Plotter.plotStat:
+			Plotter.tickPack.append(Plotter.tick)
 			Plotter.x.append(Plotter.current_t)
-			Plotter.varPack['travel'][container].append(Plotter.current_travel*Plotter.varPack['travel'][scale])
-			Plotter.varPack['vel'	][container].append(Plotter.current_vel*Plotter.varPack['vel'][scale])
-			Plotter.varPack['acc'	][container].append(Plotter.current_acc*Plotter.varPack['acc'][scale])
-			Plotter.varPack['col'	][container].append(col*Plotter.varPack['col'][scale])
-			Plotter.varPack['res'	][container].append(res*Plotter.varPack['res'][scale])
-			Plotter.varPack['p1'	][container].append(p1*Plotter.varPack['p1'][scale])
-			Plotter.varPack['p2'	][container].append(p2*Plotter.varPack['p2'][scale])
-			#Plotter.varPack['travel'][container].append(Plotter.current_travel)
-			#Plotter.varPack['vel'	][container].append(Plotter.current_vel)
-			#Plotter.varPack['acc'	][container].append(Plotter.current_acc)
-			#Plotter.varPack['col'	][container].append(col)
-			#Plotter.varPack['res'	][container].append(res)
-			#Plotter.varPack['p1'	][container].append(p1)
-			#Plotter.varPack['p2'	][container].append(p2)
+			Plotter.varPack['travel'][container].append(Plotter.current_travel*Plotter.varPack['travel'][scale]+Plotter.varPack['travel'][offset])
+			Plotter.varPack['vel'	][container].append(Plotter.current_vel*Plotter.varPack['vel'][scale]+Plotter.varPack['vel'][offset])
+			Plotter.varPack['acc'	][container].append(Plotter.current_acc*Plotter.varPack['acc'][scale]+Plotter.varPack['acc'][offset])
+			Plotter.varPack['col'	][container].append(col*Plotter.varPack['col'][scale]+Plotter.varPack['col'][offset])
+			Plotter.varPack['res'	][container].append(res*Plotter.varPack['res'][scale]+Plotter.varPack['res'][offset])
+			Plotter.varPack['p1'	][container].append(p1*Plotter.varPack['p1'][scale]+Plotter.varPack['p1'][offset])
+			Plotter.varPack['p2'	][container].append(p2*Plotter.varPack['p2'][scale]+Plotter.varPack['p2'][offset])
 		# starting to plot
 		plt.cla()
 		for var in Plotter.varPack:
 			if Plotter.varPack[var][showStat]:
 				plt.plot(Plotter.x, Plotter.varPack[var][container], linewidth=1, label=Plotter.varPack[var][label])
+				#plt.plot(Plotter.tickPack, Plotter.varPack[var][container], linewidth=1, label=Plotter.varPack[var][label])
 		plt.legend(loc='upper left')
 		plt.title('Sensor Plotter | limit: {}'.format(Plotter.limit))
 		plt.text(100,100,str(Plotter.limit))
@@ -2897,6 +2906,21 @@ class mainLLD():
 			c.abort_flow()
 			wawik(1,'D7',target-20)
 
+		@staticmethod
+		def resReferencing(tip, freq):
+			print 'Freq: {}'.format(freq)
+			targets = {20:-125, 200:-115, 1000:-65}
+			target = targets[tip]
+			mainLLD.test.runStat = True
+			source = 'D7'
+			align(1,source,target+60)
+			anchor = c.WLLDConfig.freq
+			c.WLLDConfig.freq = freq
+			zero = lld.findSurface(target,lld='wet')
+			printr('Zero: {} | Freq: {}'.format(zero, freq))
+			c.WLLDConfig.freq = anchor
+			return zero, freq
+
 
 lld = mainLLD()
 
@@ -3016,17 +3040,11 @@ class mainLLT():
 	@staticmethod
 	def findThreshold(operation='asp'):
 		print 'Finding LLT Threshold..'
-		"""if LLD.surfaceFound:
-			align(1,'D7',LLD.zero)
-		else:
-			align(1,'D7',-10)
-			c.move_abs_z(-30,100,200)
-			LLD.zero = mainLLD.findSurface(-100)"""
 		if LLD.surfaceFound:
 			c.move_abs_z(LLD.zero,100,200)
 		else:
 			c.move_abs_z(-30,100,200)
-			LLD.zero = mainLLD.findSurface(-130)
+			LLD.zero = mainLLD.findSurface(-130,lld='wet')
 		mainLLT.r1,_ = mainLLT.preReading()
 		r2,_ = mainLLT.preReading(-c.PrereadingConfig.stepDown)
 		mainLLT.threshold = (r2 - mainLLT.r1)*c.PrereadingConfig.thresMultiplier
@@ -3037,7 +3055,7 @@ class mainLLT():
 	@staticmethod
 	def test_setUp(tip, volume,iters=1):
 		printy("LLT Pipetting Test Started..")
-		targets = {20: -130, 200: -120, 1000: -65}
+		targets = {20: -130, 200: -120, 1000: -40}
 		vols = vol_calibrate([volume], tip); vol = vols[0]
 		mainLLT.run()
 		mainLLT.testStat = True
@@ -3053,11 +3071,16 @@ class mainLLT():
 		printy("LLT Pipetting Test Finished..")
 
 	@staticmethod
-	def pipettingTest(tip, volume,iters=1):
-		thread1 = threading.Thread(target=mainLLT.test_setUp,args=(tip,volume,iters))
-		thread1.start()
-		while not mainLLT.testStat: time.sleep(0.1)
-		Plotter.plot_realtime(p1=True,p2=True,res=True,travel=True,vel=True)
+	def pipettingTest(tip, volume,iters=1,live=True):
+		if live:
+			thread1 = threading.Thread(target=mainLLT.test_setUp,args=(tip,volume,iters))
+			thread1.start()
+			while not mainLLT.testStat: time.sleep(0.1)
+			Plotter.plot_realtime(p1=True,p2=True,res=True,vel=True)
+		else:
+			Plotter.plot_logging(1)
+			mainLLT.test_setUp(tip, volume, iters)
+			Plotter.plot_logging(0)
 
 	class Geo():
 		@staticmethod
@@ -3207,25 +3230,38 @@ class PvR(): # Pressure vs Resistance First Triggered
 		else:
 			print 'No PvR have ran'
 
-def gas():
-	flows, zrefs, zdets = [], [], []
-	for flow in range(10,160,10):
-		anchorFlow = c.PLLDConfig.flow
-		c.PLLDConfig.flow = flow
-		c.move_abs_z(-40,100,200)
-		zref = lld.findSurface(-70, lowSpeed=True)
-		wawik(1,'D7',-60)
-		#c.start_logger()
-		zdet = lld.findSurface(-70)
-		#c.stop_logger()
-		print 'PLLD FLOW', c.PLLDConfig.flow
-		print 'zref:',zref,'| zdet:',zdet,'| flow:',flow
-		flows.append(flow)
-		zrefs.append(zref)
-		zdets.append(zdet)
-		c.PLLDConfig.flow = anchorFlow
-		wawik(1,'D7',-60)
-	for i, flow in enumerate(flows): print 'flow:',flow,'| zref:',zrefs[i],'| zdet:',zdets[i]
+def gas(opr='p'):
+	if opr == 'p':
+		flows, zrefs, zdets = [], [], []
+		for flow in range(10,160,10):
+			anchorFlow = c.PLLDConfig.flow
+			c.PLLDConfig.flow = flow
+			c.move_abs_z(-40,100,200)
+			zref = lld.findSurface(-70, lowSpeed=True)
+			wawik(1,'D7',-60)
+			#c.start_logger()
+			zdet = lld.findSurface(-70)
+			#c.stop_logger()
+			print 'PLLD FLOW', c.PLLDConfig.flow
+			print 'zref:',zref,'| zdet:',zdet,'| flow:',flow
+			flows.append(flow)
+			zrefs.append(zref)
+			zdets.append(zdet)
+			c.PLLDConfig.flow = anchorFlow
+			wawik(1,'D7',-60)
+		for i, flow in enumerate(flows): print 'flow:',flow,'| zref:',zrefs[i],'| zdet:',zdets[i]
+	elif opr == 'w':
+		freqs, zrefs, zdets = [],[],[]
+		for freq in range(100,1100,100):
+			print 'FREQ:',freq
+			wawik(1,'D7',-70)
+			c.move_abs_z(-70, 100, 100)
+			zref = lld.findSurface(-90,lowSpeed=True)
+			zdet,f = lld.test.resReferencing(20,freq)
+			freqs.append(freq)
+			zrefs.append(zref)
+			zdets.append(zdet)
+		for i, freq in enumerate(freqs): print 'freq:',freq,'| zrefs',zrefs[i],'| zdet:',zdets[i]
 
 
 # ALWAYS RE-SETUP EVERY TIME CHANNEL IS CHANGED

@@ -538,7 +538,7 @@ def wawik(rack=0,source='A1',target=-100,Deck=2,well='B3'):
 	c.move_abs_z(0,100,100)
 	align(Deck,well,-40)
 	c.set_collision_abort(30)
-	c.move_abs_z(target,20,100)
+	c.move_abs_z(target-30,20,100)
 	c.clear_abort_config(1)
 	c.clear_motor_fault()
 	c.move_rel_z(3,5,100,0)
@@ -546,7 +546,7 @@ def wawik(rack=0,source='A1',target=-100,Deck=2,well='B3'):
 	time.sleep(1)
 	c.abort_flow()
 	c.set_collision_abort(30)
-	c.move_abs_z(target,20,100)
+	c.move_abs_z(target-30,20,100)
 	c.clear_abort_config(1)
 	c.clear_motor_fault()
 	c.move_rel_z(3,5,100,0)
@@ -2492,6 +2492,7 @@ class mainLLD():
 		init_res = c.p.read_dllt_sensor()
 		print 'move', c.p.get_motor_pos(0)
 		c.move_abs_z(depth,stem_vel,stem_acc) # max move but will stop when plld triggered"
+		print 'HARDZ AAAAA',c.get_triggered_input(c.AbortID.HardZ)
 		if str.lower(lld) == 'dry':
 			if not lowSpeed:
 				if c.get_triggered_input(c.AbortID.NormalAbortZ) == 1 << c.InputAbort.PressureSensor2:
@@ -2514,8 +2515,6 @@ class mainLLD():
 			Wet.HardZ_trig = c.check_triggered_input(c.AbortID.HardZ)			
 			LLD.HardZ_trig = Wet.HardZ_trig
 		printr('Trigger check: NormalZ: {} | HardZ: {}'.format(LLD.NormalZ_trig, LLD.HardZ_trig))
-		postPress = c.p.read_pressure_sensor(1)
-		postRes = c.p.read_dllt_sensor()
 		print 'done move',  c.p.get_motor_pos(0)
 		# after the motor stopped, set every process done
 		c.abort_flow()
@@ -2524,7 +2523,6 @@ class mainLLD():
 		c.Calibrate_done = True
 		c.Count_volume_done = True
 		c.Pipetting_done = True
-		c.move_done = True
 		# clear all abort
 		print 'press-res trig:',Dry.press_trig, Dry.res_trig
 		pos =  c.get_motor_pos()
@@ -2553,8 +2551,8 @@ class mainLLD():
 				Wet.surfaceFound = True
 				printb('Surface found at Wet')
 			else:
-				printy("Resistance Limit isn't reached at Wet")		
-		c.PostTrigger.terminateAll()		
+				printy("Resistance Limit isn't reached at Wet")
+		c.PostTrigger.terminateAll()
 		return zero
 
 	# LLD TEST / TIP RECIPROCATING
@@ -2582,9 +2580,9 @@ class mainLLD():
 				pickpos = kw[2]
 
 			# z picktip
-			pick_targets 	= {20	:-132, 	200		:-122, 	1000	:-117}
+			pick_targets 	= {20	:-131, 	200		:-121, 	1000	:-117}
 			evades 			= {20	:3,		200		:3,		1000	:0}	
-			targets 		= {20 	:-110, 	200 	:-100, 	1000	:-60}
+			targets 		= {20 	:-90, 	200 	:-80, 	1000	:-30}
 			#targets 		= {20 	:-120, 	200 	:-110, 	1000	:-70}
 			safes 			= {20	:-55,	200		:-35,	1000	:0}
 			# using plateReader
@@ -2921,37 +2919,40 @@ class mainLLT():
 
 	@staticmethod
 	def run(operation='asp'):
-		LLD.reset()
-		mainLLT.findThreshold(operation=operation)
-		if str.lower(operation) == 'asp':
-			if mainLLT.r2asp > mainLLT.r1:
-				printg('**Geometric LLT Mode**')
-				mainLLT.threshold = 0.0
-				mainLLT.Geo.init(operation)
-				mainLLT.Geo.start()
-			elif abs(mainLLT.r2asp - mainLLT.r1) < c.PrereadingConfig.dlltMinAspThres:
-				printg('**Geometric LLT Mode**')
-				mainLLT.Geo.init(operation)
-				mainLLT.Geo.start()
-			else:
-				printg('**Resistance LLT Mode**')
-				mainLLT.Res.init(operation)
-				mainLLT.Res.start()
-		elif str.lower(operation) == 'dsp':
-			if not mainLLT.r2dsp or not mainLLT.r2asp: mainLLT.r2diff = mainLLT.r2dsp - mainLLT.r2asp
-			if mainLLT.r2 > mainLLT.r1:
-				printg('**Geometric LLT Mode**')
-				mainLLT.threshold = 0.0 # to avoid different resistance preread mode n operation
-				mainLLT.Geo.init(operation)
-				mainLLT.Geo.start()
-			elif c.PrereadingConfig.dlltMinDspThres < abs(mainLLT.r2 - mainLLT.r1) and (c.PrereadingConfig.dlltMinThres<mainLLT.r2diff<c.PrereadingConfig.dlltMaxThres):
-				printg('**Resistance LLT Mode**')
-				mainLLT.Res.init(operation)
-				mainLLT.Res.start()
-			else:
-				printg('**Geometric LLT Mode**')
-				mainLLT.Geo.init(operation)
-				mainLLT.Geo.start()
+		if not c.p.is_running_dllt():
+			LLD.reset()
+			mainLLT.findThreshold(operation=operation)
+			if str.lower(operation) == 'asp':
+				if mainLLT.r2asp > mainLLT.r1:
+					printg('**Geometric LLT Mode**')
+					mainLLT.threshold = 0.0
+					mainLLT.Geo.init(operation)
+					mainLLT.Geo.start()
+				elif abs(mainLLT.r2asp - mainLLT.r1) < c.PrereadingConfig.dlltMinAspThres:
+					printg('**Geometric LLT Mode**')
+					mainLLT.Geo.init(operation)
+					mainLLT.Geo.start()
+				else:
+					printg('**Resistance LLT Mode**')
+					mainLLT.Res.init(operation)
+					mainLLT.Res.start()
+			elif str.lower(operation) == 'dsp':
+				if not mainLLT.r2dsp or not mainLLT.r2asp: mainLLT.r2diff = mainLLT.r2dsp - mainLLT.r2asp
+				if mainLLT.r2 > mainLLT.r1:
+					printg('**Geometric LLT Mode**')
+					mainLLT.threshold = 0.0 # to avoid different resistance preread mode n operation
+					mainLLT.Geo.init(operation)
+					mainLLT.Geo.start()
+				elif c.PrereadingConfig.dlltMinDspThres < abs(mainLLT.r2 - mainLLT.r1) and (c.PrereadingConfig.dlltMinThres<mainLLT.r2diff<c.PrereadingConfig.dlltMaxThres):
+					printg('**Resistance LLT Mode**')
+					mainLLT.Res.init(operation)
+					mainLLT.Res.start()
+				else:
+					printg('**Geometric LLT Mode**')
+					mainLLT.Geo.init(operation)
+					mainLLT.Geo.start()
+		else:
+			printr('DLLT ALREADY RUNNING!')
 
 	@staticmethod
 	def terminate():

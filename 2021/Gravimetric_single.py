@@ -2805,6 +2805,7 @@ class mainLLT():
 					printg('**Geometric LLT Mode**')
 					mainLLT.Geo.init(operation)
 					mainLLT.Geo.start()
+			LLD.reset()
 		else:
 			printr('DLLT ALREADY RUNNING!')
 

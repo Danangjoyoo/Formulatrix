@@ -7,6 +7,7 @@ from winsound import Beep
 from math import pi
 import imp
 import numpy as np
+import pandas as pd
 
 p = None
 driver = None
@@ -298,7 +299,34 @@ def thread_logger(motorm=0,sensorm=6):
 			line += "\n"
 			f.write(line)
 		f.close()
+	modifyLog(file_name)
 	call(["..\Include\log_plot.exe", file_name])
+
+
+def modifyLog(filename):
+	df = pd.read_csv(filename)
+	if ' PosActual_ZM' in df.keys():
+		dfLength = len(df) - 1
+		tickPack = df.pop('Tick')[:dfLength]
+		posZPack = df.pop(' PosActual_ZM')[:dfLength]
+		velPack, accPack = [0], [0]
+		for i in range(len(tickPack)): 
+			if i > 0: 
+				velPack.append((posZPack[i] - posZPack[i-1])*1000)
+				accPack.append((velPack[i] - velPack[i-1])*1000)
+		varPack = [tickPack,  posZPack, velPack, accPack]
+		for key in df.keys():
+			varPack.append(df[key][:dfLength])
+		cols = ['Tick',' PosActual_ZM',' Veloc',' Accel']
+		for key in df.keys(): cols.append(key)
+		datas = []
+		for i in range(dfLength):
+			datas.append([])
+			for var in varPack:
+				datas[i].append(var[i])
+		new_df = pd.DataFrame(datas, columns=cols)
+		new_df.to_csv(filename, index=False)
+
 
 #------- End Logger ---------------
 

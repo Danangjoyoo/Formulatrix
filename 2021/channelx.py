@@ -225,7 +225,7 @@ def chunks(l, n):
 	n = max(1, n)
 	return [l[i:i + n] for i in range(0, len(l), n)]
 
-def start_logger(motorm=256,sensorm=22):
+def start_logger(motorm=0,sensorm=22):
 	global thread_run
 	thread_run = True
 	thread1 = threading.Thread(name='logger 1', target=thread_logger, args=(motorm,sensorm))
@@ -1923,7 +1923,6 @@ class PostTrigger(threading.Thread):
 		globals()['postRes'] = None
 		while self.checkStat:
 			if get_triggered_input(AbortID.NormalAbortZ) or get_triggered_input(AbortID.HardZ):
-				print 'HARDDDD',check_triggered_input(AbortID.HardZ)
 				self.postPress = p.read_pressure_sensor(1)
 				self.postRes = p.read_dllt_sensor()
 				self.checkStat = False

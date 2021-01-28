@@ -979,7 +979,6 @@ def vol_calibrate(vol,tip=20):
 		offset = df.loc[df['Tip'] == loct, 'Offset Asp'].values[0]
 		#scale =  float(df.loc[loct][1])
 		#offset = float(df.loc[loct][2])
-		print scale,offset
 		volout = float(i)*scale+offset
 		newvol.append(volout)
 	return newvol
@@ -1117,7 +1116,7 @@ def manualPicktip(pos='None',target=0,evade=0,defaultStat=True):
 		return defaultStat,nextpos,pos
 
 
-
+# ================= GRAVIMETRIC ==========================
 def nimbang_1ml(*args):
 	proceed = True
 	if args:
@@ -1329,10 +1328,6 @@ def nimbang_1ml(*args):
 	    
 		weightLoss = initWeight - finalWeight
 		weightLoss_Ratio = weightLoss/initWeight
-		"""try:
-			weightLoss_Ratio = round((weightLoss/initWeight),3)
-		except:
-			weightLoss_Ratio = '-'"""
 		saved_pushData = string_pushData.split(';')
 		print 'saved Pushdata', saved_pushData
 		for savedData in saved_pushData:
@@ -1346,7 +1341,6 @@ def nimbang_1ml(*args):
 		avoidInpErr.warningBeep()
 		print "Loop done, data stored at: ", filename
 
-
 def nimbang_increment_1ml(*inputs1):
 	deck.setTravelMode('grav')
 	setVelAcc_z_mode('grav')
@@ -1358,7 +1352,7 @@ def nimbang_increment_1ml(*inputs1):
 		if str.lower(inputs1[0]) == 'v' or str.lower(inputs1[0]) == 'vol':
 			manualvol = True
 			inputs1 = avoidInpErr.reInput('Desired Vols: ')
-	inputs2 = avoidInpErr.reInput("input please : tip, iter_per_tip, PickPos >> ",avoidInpErr.test_inputNimbangIncrement1ml)
+	inputs2 = avoidInpErr.reInput("input please : tip, iter/vol, PickPos >> ",avoidInpErr.test_inputNimbangIncrement1ml)
 	inputs2 = inputs2.split(",")
 	liquid = avoidInpErr.reInput("input liquid type : peg,gly,met,wat >> ",avoidInpErr.test_inputLiquid)
 	splitStat = raw_input("Split aspirate with dispense? Y/N  ")
@@ -1378,7 +1372,7 @@ def nimbang_increment_1ml(*inputs1):
 
 	tip = inputs2[0]
 	deck.setZeroDeckMode(tip)
-	iter_per_tip = inputs2[1]
+	iter_per_vol = inputs2[1]
 	initPickPos = inputs2[2]
 
 	print " "
@@ -1386,8 +1380,8 @@ def nimbang_increment_1ml(*inputs1):
 	print "====weighing properties===="
 	print "List Volume :",list_vol
 	print "Total Increment Pipetting:", len(list_vol)
-	print "Tip required: ", int(iter_per_tip)*int((len(list_vol)))
-	print "tip:",tip,"| iter per tip:",iter_per_tip,"| Initial Pickpos:",initPickPos
+	print "Tip required: ", int(iter_per_vol)*int((len(list_vol)))
+	print "tip:",tip,"| iter per tip:",iter_per_vol,"| Initial Pickpos:",initPickPos
 	print "Split Files:", splitStat
 	print "==========================="
 	print "[NOTES] ALWAYS REFILL YOUR SELECTED PICKPOS ON CADDY EVERYTIME THE VOLUME IS CHANGING!"
@@ -1413,7 +1407,7 @@ def nimbang_increment_1ml(*inputs1):
 	for i in enumerate(list_vol):
 		vol = float(i[1])
 		tip = int(tip)
-		iter = int(iter_per_tip)
+		iter = int(iter_per_vol)
 		if i[0] == 0:
 			pickpos = initPickPos
 		else:
@@ -1642,6 +1636,8 @@ def nimbang_increment_1ml(*inputs1):
 	else:
 		print "Loop done, data stored at: ", filename
 
+
+# ================== PLATE READER =========================
 def autoposAsp(vol,row='E'): #Referensi dari tabel Working Dye
 	row = str.upper(row)
 	if vol <= 2: 		#WD 4
@@ -1704,7 +1700,7 @@ def plate_showMap(rawMaps):
 def plate_fill(*inputs):
 	operation, simulation = False, False
 	list_vol, aspPos, dspPos, complete_vols = [], [], [], []
-	tip, iter_per_tip, pickpos = None, None, None
+	tip, iter_per_vol, pickpos = None, None, None
 	tipMap, aspMap, dspMap = plate_maps(),plate_maps(),plate_maps()
 	if inputs:
 		if inputs[0] == 's':
@@ -1716,11 +1712,11 @@ def plate_fill(*inputs):
 			operation = True
 			list_vol 		= inputs[0]
 			tip 			= inputs[1]
-			iter_per_tip 	= inputs[2]
+			iter_per_vol 	= inputs[2]
 			pickpos 		= inputs[3]
 			aspPos_state	= inputs[6]
 			simulation 		= inputs[7]
-			complete_vols 	= [i for i in list_vol for ii in range(iter_per_tip)]
+			complete_vols 	= [i for i in list_vol for ii in range(iter_per_vol)]
 			print complete_vols
 
 			if aspPos_state == 'a' or aspPos_state == 'auto':
@@ -1764,7 +1760,7 @@ def plate_fill(*inputs):
 			printb("   =================== Custom Vol Mode Activated ===================")
 			inputs = avoidInpErr.reInput('Desired Vol >> '); inputs = inputs.split(',')
 			list_vol =  [float(i) for i in inputs]
-			inputs = str.upper(avoidInpErr.reInput('Tip, Iter/tip, Pickpos, AspPos, DspPos >> ', avoidInpErr.test_plateFill)); inputs = inputs.split(',')
+			inputs = str.upper(avoidInpErr.reInput('Tip, Iter/vol, Pickpos, AspPos, DspPos >> ', avoidInpErr.test_plateFill)); inputs = inputs.split(',')
 			aspPos_state = str.lower(raw_input('Asp Pos Mode (auto/normal/lock) >> '))
 			if not simulation:
 				plate_fill(list_vol,int(inputs[0]), int(inputs[1]), inputs[2], inputs[3], inputs[4],aspPos_state, False)
@@ -1779,7 +1775,7 @@ def plate_fill(*inputs):
 				inputs = str.lower(raw_input("Insert Pickpos, tip >> ")); inputs = inputs.split(',')
 				plate_copy(inputs[0],int(inputs[1]))
 		elif str.lower(inputs) == 's':
-			printg("\t\t*** SIMULATION MODE ***\t\t")
+			#printg("\t\t*** SIMULATION MODE ***\t\t")
 			plate_fill('s')
 		else:
 			printr("Insert Only 1 mode! i/c/v/s")
@@ -1801,7 +1797,7 @@ def plate_fill(*inputs):
 		plate_showMap(dspMap)
 		print "Volumes\t\t:", list_vol
 		print "Tip\t\t:", tip
-		print "Iter/tip\t:", iter_per_tip
+		print "Iter/vol\t:", iter_per_vol
 		print "Aspirate Mode\t:", aspPos_state
 		print "AspPos:", inputs[4], '| DspPos:', inputs[5]
 		print 'Pickpos', pickpos
@@ -1970,8 +1966,7 @@ def yy():
 		sensed.append(detected)
 		for i,x in enumerate(weight):
 			print weight[i]," - \t", sensed[i]
-		time.sleep(1)
-		
+		time.sleep(1)		
 def zz():
 	vol = [1030,202,24,8.7]
 	weight,sensed= [],[]
@@ -2097,17 +2092,13 @@ class Plotter():
 		while not Plotter.init:
 			if kb.is_pressed('ctrl+p'): Plotter.plotStat = False
 			else: Plotter.plotStat = True
-			if kb.is_pressed('ctrl+='):
-				Plotter.limit += 0.05
-			if kb.is_pressed('ctrl+-'):
-				Plotter.limit -= 0.05
 
 	@staticmethod
 	def raiseProcess():
 		if len(Plotter.threads) > 0:
 				if Plotter.threads[0].isAlive():
 					printy('Raising the background process to the foregound! Please wait..')
-					printy('Check the blocking status at Terminal/Console/CMD!')
+					printy('You cant do anything unless the process is done!')
 					Plotter.threads[0].join()
 					printy(Plotter.func, 'is Raised.. now u can terminate')
 				else:
@@ -2251,36 +2242,7 @@ class Plotter():
 		plt.title('Sensor Plotter | limit: {}'.format(Plotter.limit))
 		plt.text(100,100,str(Plotter.limit))
         # end of plotting =======================
-        #print("Elapsed:", round(time.time() - t1, 4), "ms")
 plotter = Plotter()
-
-spdPlotter = False
-def speedPlotter(start=True,thread=False):
-	global spdPlotter
-	if start:
-		spdPlotter = True
-		filename = 'Level\plot_speed_{}.csv'.format(int(time.time()))
-		t1 = time.time()
-		t = time.time() - t1
-		n = 0
-		before_t = 0
-		desum = abs(c.p.get_encoder_position(0))
-		before_travel = 0
-		if thread:
-			back_write(wraps(['t,travel,speed,res']),filename)
-			while spdPlotter:
-				t = round(time.time() - t1,2)
-				travel = abs(c.p.get_encoder_position(0))-desum
-				speed = (travel-before_travel)/(t-before_t)
-				before_travel = travel
-				before_t = t
-				n += 1
-				back_write(wraps(['{},{},{},{}'.format(t,travel,speed,c.p.read_dllt_sensor())]),filename,warn=False)
-		else:
-			thread1 = threading.Thread(target=speedPlotter,args=(1,1))
-			thread1.start()
-	else:
-		spdPlotter = False
 
 def preReadingPlotter(readCount=5,decrement=-1,customDelay=None):
 	curDelay = c.PrereadingConfig.readDelay
@@ -2521,7 +2483,6 @@ class mainLLD():
 		init_res = c.p.read_dllt_sensor()
 		print 'move', c.p.get_motor_pos(0)
 		c.move_abs_z(depth,stem_vel,stem_acc) # max move but will stop when plld triggered"
-		print 'HARDZ AAAAA',c.get_triggered_input(c.AbortID.HardZ)
 		if str.lower(lld) == 'dry':
 			if not lowSpeed:
 				if c.get_triggered_input(c.AbortID.NormalAbortZ) == 1 << c.InputAbort.PressureSensor2:
@@ -2940,8 +2901,6 @@ class mainLLD():
 			printr('Zero: {} | Freq: {}'.format(zero, freq))
 			c.WLLDConfig.freq = anchor
 			return zero, freq
-
-
 lld = mainLLD()
 
 LLD = mainLLD.Operation('LLD')
@@ -3165,7 +3124,6 @@ class mainLLT():
 				c.clear_abort_config(c.AbortID.HardZ)
 				c.clear_estop()
 				c.clear_motor_fault()
-
 llt = mainLLT()
 
 class PvR(): # Pressure vs Resistance First Triggered

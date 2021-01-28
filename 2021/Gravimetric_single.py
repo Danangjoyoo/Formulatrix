@@ -1997,6 +1997,7 @@ class Plotter():
 			Plotter.getData = True
 			filename = 'Level\plot_sensor_{}.csv'.format(int(time.time()))
 			Plotter.filename = filename
+			datas = []
 			# movement
 			init_t = time.time()
 			Plotter.init_t = init_t
@@ -2011,8 +2012,6 @@ class Plotter():
 			#other sensor
 			col, res, p1, p2 = 0,0,0,0
 			if thread:
-				back_write(wraps(['t,travel,vel,acc,col,res,p1,p2']),filename)
-				time.sleep(0.1)
 				while Plotter.getData:
 					# movement
 					current_t = round(time.time() - init_t,2)					
@@ -2028,9 +2027,13 @@ class Plotter():
 					res = c.p.read_dllt_sensor()
 					p1 = c.p.read_pressure_sensor(0)
 					p2 = c.p.read_pressure_sensor(1)
+					datas.append([])
+					for val in [current_t, current_travel, current_vel, current_acc, col, res, p1, p2]:
+						datas[n].append(val)
 					n += 1
-					back_write(wraps(['{},{},{},{},{},{},{},{}'.format(
-						current_t, current_travel, current_vel, current_acc, col, res, p1, p2)]),filename,warn=False)
+				cols = ['t','travel','vel','acc','col','res','p1','p2']
+				df = pd.DataFrame(datas,columns=cols)
+				df.to_csv(filename,index=False)
 			else:
 				thread1 = threading.Thread(target=Plotter.plot_logging,args=(1,1))
 				thread1.start()
@@ -2064,8 +2067,8 @@ class Plotter():
 		'acc'	: [[], 'acc'	, False, 1, 0],
 		'col'	: [[], 'col'	, False, 1, 0],
 		'res'	: [[], 'res'	, False, 1, 0],
-		'p1'	: [[], 'p1'		, False, 1, 0],
-		'p2'	: [[], 'p2'		, False, 1, 0] }
+		'p1'	: [[], 'p1 '	, False, 1, 0],
+		'p2'	: [[], 'p2 '	, False, 1, 0] }
 
 	@staticmethod
 	def run(*args): #function, param1, param2, dll
@@ -2130,31 +2133,19 @@ class Plotter():
 		Plotter.x = []
 		Plotter.limit = 30
 		Plotter.init = True
+		for var in Plotter.varPack:	Plotter.varPack[var][0] = []
+
+	@staticmethod
+	def resetVariables():
 		Plotter.varPack = { 
 			'travel': [[], 'travel'	, False, 1, 0],
 			'vel'	: [[], 'vel'	, False, 1, 0],
 			'acc'	: [[], 'acc'	, False, 1, 0],
 			'col'	: [[], 'col'	, False, 1, 0],
 			'res'	: [[], 'res'	, False, 1, 0],
-			'p1'	: [[], 'p1'		, False, 1, 0],
-			'p2'	: [[], 'p2'		, False, 1, 0] }
-
-	@staticmethod
-	def setScale(**vars): # untuk scaling chart
-		container, label, showStat, scale = 0, 1, 2, 3
-		for var in vars:
-			if var in Plotter.varPack:
-				Plotter.varPack[var][scale] = vars[var]
-				print var,'scale:', vars[var]
-
-	@staticmethod
-	def setOffset(**vars): # untuk offsetting chart
-		container, label, showStat, offset = 0, 1, 2, 4
-		for var in vars:
-			if var in Plotter.varPack:
-				Plotter.varPack[var][offset] = vars[var]
-				print var,'scale:', vars[var]
-
+			'p1'	: [[], 'p1 '	, False, 1, 0],
+			'p2'	: [[], 'p2 '	, False, 1, 0] }
+	
 	@staticmethod
 	def setSensor(**sens): # untuk set sensor dari terminal dan limit
 		container, label, showStat, scale = 0, 1, 2, 3
@@ -2162,14 +2153,42 @@ class Plotter():
 		for sensor in sens:
 			if sensor in Plotter.varPack:
 				Plotter.varPack[sensor][showStat] = sens[sensor]
-				print sensor, 'plot:', sens[sensor]
+				print sensor+"'s plot:", sens[sensor]
+
+	@staticmethod
+	def setScale(**vars): # untuk scaling chart
+		container, label, showStat, scale = 0, 1, 2, 3
+		if vars:
+			for var in vars:
+				if var in Plotter.varPack:
+					Plotter.varPack[var][scale] = vars[var]
+					print var+"'s scale:", vars[var]
+		else:
+			print 'No Scale is Changed'
+
+	@staticmethod
+	def setOffset(**vars): # untuk offsetting chart
+		container, label, showStat, offset = 0, 1, 2, 4
+		if vars:
+			for var in vars:
+				if var in Plotter.varPack:
+					Plotter.varPack[var][offset] = vars[var]
+					print var+"'s offset:", vars[var]
+		else:
+			print 'No Offset is Changed'
+
+	@staticmethod
+	def checkVar():
+		for var in Plotter.varPack:
+			val = Plotter.varPack[var]
+			print "Var: {}\t| Plot: {}\t| Scale: {}\t| Offset: {}\t".format(val[1],val[2],val[3],val[4])
 
 	@staticmethod
 	def plot_realtime(**show):
 		if show:			
 			Plotter.setSensor(**show)
 			Plotter.plotStat = True
-			ani = FuncAnimation(plt.gcf(), Plotter.autoUpdate, interval=15)
+			ani = FuncAnimation(plt.gcf(), Plotter.autoUpdate, interval=5)
 			plt.show()
 		else:
 			printr("Input sensor that you want to plot! (Ex: p2=True, p1= True)")
@@ -2226,13 +2245,14 @@ class Plotter():
 		plt.cla()
 		for var in Plotter.varPack:
 			if Plotter.varPack[var][showStat]:
-				plt.plot(Plotter.x, Plotter.varPack[var][container], linewidth=1, label=Plotter.varPack[var][label])
+				plt.plot(Plotter.x, Plotter.varPack[var][container], linewidth=1, label=var)
 				#plt.plot(Plotter.tickPack, Plotter.varPack[var][container], linewidth=1, label=Plotter.varPack[var][label])
 		plt.legend(loc='upper left')
 		plt.title('Sensor Plotter | limit: {}'.format(Plotter.limit))
 		plt.text(100,100,str(Plotter.limit))
         # end of plotting =======================
         #print("Elapsed:", round(time.time() - t1, 4), "ms")
+plotter = Plotter()
 
 spdPlotter = False
 def speedPlotter(start=True,thread=False):
@@ -3066,7 +3086,7 @@ class mainLLT():
 			dispense(vol, tip)
 		time.sleep(2)
 		mainLLT.terminate()
-		c.move_rel_z(15,100,200)
+		c.move_rel_z(30,100,200)
 		mainLLT.testStat = False
 		printy("LLT Pipetting Test Finished..")
 

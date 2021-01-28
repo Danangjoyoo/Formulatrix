@@ -2092,13 +2092,17 @@ class Plotter():
 		while not Plotter.init:
 			if kb.is_pressed('ctrl+p'): Plotter.plotStat = False
 			else: Plotter.plotStat = True
+			if kb.is_pressed('ctrl+='):
+				Plotter.limit += 0.05
+			if kb.is_pressed('ctrl+-'):
+				Plotter.limit -= 0.05
 
 	@staticmethod
 	def raiseProcess():
 		if len(Plotter.threads) > 0:
 				if Plotter.threads[0].isAlive():
 					printy('Raising the background process to the foregound! Please wait..')
-					printy('You cant do anything unless the process is done!')
+					printy('Check the blocking status at Terminal/Console/CMD!')
 					Plotter.threads[0].join()
 					printy(Plotter.func, 'is Raised.. now u can terminate')
 				else:
@@ -2242,6 +2246,7 @@ class Plotter():
 		plt.title('Sensor Plotter | limit: {}'.format(Plotter.limit))
 		plt.text(100,100,str(Plotter.limit))
         # end of plotting =======================
+        #print("Elapsed:", round(time.time() - t1, 4), "ms")
 plotter = Plotter()
 
 def preReadingPlotter(readCount=5,decrement=-1,customDelay=None):
@@ -2309,6 +2314,154 @@ class mainLLD():
 			self.HardZ_trig = None
 			self.resLimit = None
 			self.saturated = False
+
+		@staticmethod
+		def set_value(z,p1,p2,r):
+			LLD.zero = z
+			LLD.p1 = p1
+			LLD.p2 = p2
+			LLD.res = r
+
+		@staticmethod
+		def get_value(text=False):
+			if not text:
+				return round(LLD.zero,3), round(LLD.p1,3), round(LLD.p2,3), LLD.res
+			else:
+				return 'Z: {}\tP1: {}\tP2: {}\tR: {}'.format(round(LLD.zero,3), round(LLD.p1,3), round(LLD.p2,3), LLD.res)
+
+	@staticmethod
+	def goZero(manual=False,flow=3,dllt=True,tip=200):
+		c.clear_estop()
+		c.abort_flow(); retract_press(3,150); c.start_flow(flow)
+		if not tip == 1000:
+			z = -70
+		else:
+			z = -10
+			LLD.zero = -20
+		x,y = 0,0
+		p1,p2,r = 0,0,0
+		cre,n = 1,0
+		z_anchor = LLD.zero
+		sf_press, sf_res = False, False
+		p1_init = c.p.read_pressure_sensor(0)
+		p2_init = c.p.read_pressure_sensor(1)
+		r_init = c.p.read_dllt_sensor()
+		printr('Inital Value\t: p1 = {}\tp2 = {}\tr = {}'.format(p1_init,p2_init,r_init))
+		printr('LLD value\t: p1 = {}\tp2 = {}\tr = {}'.format(LLD.p1,LLD.p2,LLD.res))
+		if manual:
+			printy('Manual Tuning GoZERO : \nuse ctrl+up/down to control Z pos (+shift to speed up)\npress space when done..')
+			while True:
+				if kb.is_pressed('space'):
+					break
+				if kb.is_pressed('down+ctrl'):
+					z -= 3 if kb.is_pressed('shift') else 1
+				elif kb.is_pressed('up+ctrl'):
+					z += 3 if kb.is_pressed('shift') else 1
+				p1 = c.p.read_pressure_sensor(0)
+				p2 = c.p.read_pressure_sensor(1)
+				if dllt:
+					r = c.p.read_dllt_sensor()
+				c.p.move_motor_abs(0,z*100,100*100,100*100)
+				if c.p.read_collision_sensor() < 1000:
+					c.clear_motor_fault()
+					c.clear_estop()
+				print 'z: '+str(z)+'| P1 = '+str(p1)+' | P2 = '+str(p2)+' | Diff: '+str(p1-p2)+' | dllt: '+str(r)+'\r',
+			LLD.set_value(z,p1,p2+1,r)
+			print 'LLD Set >>', LLD.get_value(True)
+			printg('Manual GoZERO Finished')
+			print 'z: '+str(z)+'| P1 = '+str(p1)+' | P2 = '+str(p2)+' | Diff: '+str(p1-p2)+' | dllt: '+str(r)
+			c.abort_flow()
+			retract_press(10,100)
+			c.clear_motor_fault()
+			mainLLD.goZero(manual=False,tip=tip)
+		else:
+			printy('Auto Find GoZERO')
+			if LLD.res > r_init:
+				r_init = LLD.res
+			if abs(p2_init-LLD.p2) > 2:
+				c.abort_flow(); retract_press(10,150); c.start_flow(flow)
+			while True:
+				p1 = c.p.read_pressure_sensor(0)
+				p2 = c.p.read_pressure_sensor(1)
+				r = c.p.read_dllt_sensor()
+				if p2 < LLD.p2+5:
+					if p2_init < p2:
+						if r < r_init-100:
+							z += cre
+							n += 1; print n
+						else:
+							z -= cre
+					else:
+						z -= cre
+				else:
+					c.abort_flow(); retract_press(3,150); c.start_flow(flow)
+				if LLD.zero+10 < z:
+					cre = 3
+				elif LLD.zero+5 < z <= LLD.zero +10:
+					cre = 0.5
+				elif z < LLD.zero + 3:
+					cre = 0.1
+				if n >= 25 and r > r_init-100 and p2_init < p2 < LLD.p2+5:
+					break
+				c.p.move_motor_abs(0,z*100,100*100,100*100)
+				if c.p.read_collision_sensor() < 1000:
+					c.clear_motor_fault()
+					c.clear_estop()
+					z += 5
+				print 'z: '+str(z)+'| P1 = '+str(p1)+' | P2 = '+str(p2)+' | Diff: '+str(p1-p2)+' | dllt: '+str(r)+'\r',
+			LLD.set_value(z,p1,p2+1,r)
+			if z > z_anchor+10:
+				printr('\nZero Surface too far from estimation, Entering Addition Phase...')
+				mainLLD.goZero()
+			else:
+				printg('\n Zero Surface Found! Auto Tuning GoZERO Finished')
+				print 'LLD Set >>', LLD.get_value(True)
+				c.abort_flow()
+				c.clear_motor_fault()
+		c.set_estop_abort(500)
+
+	@staticmethod
+	def testGoZero(x):
+		filename = 'Level/LLDgoZeroCheck_'+ time.strftime('%Y%m%d%H%M%S', time.localtime(time.time())) + '.csv'
+		back_write(wraps(['n','Z','P1','P2','Resistance','Total Time']),filename)
+		for i in range(x):
+			print(i)
+			t1 = time.time()
+			mainLLD.goZero()
+			total = time.time() - t1
+			z,p1,p2,r = LLD.get_value()
+			back_write(wraps([str(i+1),str(z),str(p1),str(p2),str(r),str(total)]),filename)
+
+	@staticmethod
+	def varCheck(x):
+		c.start_flow(1)
+		p1_rec, p2_rec, r_rec = [], [], []
+		p1_tAvg,p2_tAvg,r_tAvg = [], [], []
+		p1_maxDev,p2_maxDev,r_maxDev = 0,0,0
+		filename = 'Level/LLDvariableCheck_'+ time.strftime('%Y%m%d%H%M%S', time.localtime(time.time())) + '.csv'
+		back_write(wraps(['P1','P2','Resistance']), filename)
+		for i in range(x):
+			p1 = c.p.read_pressure_sensor(0); p1_rec.append(p1)
+			p2 = c.p.read_pressure_sensor(1); p2_rec.append(p2)
+			r = c.p.read_dllt_sensor(); r_rec.append(r)
+			back_write(wraps([p1,p2,r]),filename,False)
+		p1_avg = np.average(p1_rec)
+		p2_avg = np.average(p2_rec)
+		r_avg = np.average(r_rec)
+		for i in range(x):
+			p1_t = abs(p1_avg - p1_rec[i]); p1_tAvg.append(p1_t/p1_avg)
+			p2_t = abs(p2_avg - p2_rec[i]); p2_tAvg.append(p2_t/p2_avg)
+			r_t = abs(r_avg - r_rec[i]); r_tAvg.append(r_t/r_avg)
+			if p1_t > p1_maxDev: p1_maxDev = p1_t 
+			if p2_t > p2_maxDev: p2_maxDev = p2_t
+			if r_t > r_maxDev: r_maxDev = r_t
+		p1_stability = np.average(p1_tAvg)
+		p2_stability = np.average(p2_tAvg)
+		r_stability = np.average(r_tAvg)
+		printb('Mean\t\t: P1: {}\tP2: {}\tRes: {}'.format(p1_avg, p2_avg, r_avg))
+		printb('Instability\t: P1: {}\tP2: {}\tRes: {}'.format(p1_stability, p2_stability, r_stability))
+		printb('Max Deviation\t: P1: {}\tP2: {}\tRes: {}'.format(p1_maxDev,p2_maxDev,r_maxDev))
+		c.abort_flow()
 
 	@staticmethod
 	def findSurface(depth=-80,lld='dry',lowSpeed=False):
@@ -2395,7 +2548,6 @@ class mainLLD():
 			else:
 				printy("Resistance Limit isn't reached at Wet")
 		c.PostTrigger.terminateAll()
-		LLD.zero = zero
 		return zero
 
 	# LLD TEST / TIP RECIPROCATING
@@ -2512,10 +2664,11 @@ class mainLLD():
 							if c.p.read_dllt_sensor() < res_init - Dry.resThres:
 								LLD.res_trig = True
 							if LLD.res_trig:
-								printr('Resistance triggered! Pressure Zero Surface Fail')
-								LLD.surfaceFound = False
-							else:
-								printg('Zero Surface Found! Cleaning up the tip...')
+								printr('Resistance triggered! Pressure Zero Surface Fail, Trying GoZERO...')
+								mainLLD.goZero()
+								zeros = LLD.zero
+								LLD.surfaceFound = True
+							printg('Zero Surface Found! Cleaning up the tip...')
 						Dry.reset()
 						Wet.reset()
 						if LLD.surfaceFound:
@@ -2773,9 +2926,10 @@ class mainLLT():
 	testStat = False
 
 	@staticmethod
-	def run(operation='asp', target=-130):
+	def run(operation='asp'):
 		if not c.p.is_running_dllt():
-			mainLLT.findThreshold(operation=operation, target=target)
+			LLD.reset()
+			mainLLT.findThreshold(operation=operation)
 			if str.lower(operation) == 'asp':
 				if mainLLT.r2asp > mainLLT.r1:
 					printg('**Geometric LLT Mode**')
@@ -2805,24 +2959,19 @@ class mainLLT():
 					printg('**Geometric LLT Mode**')
 					mainLLT.Geo.init(operation)
 					mainLLT.Geo.start()
-			LLD.reset()
 		else:
 			printr('DLLT ALREADY RUNNING!')
 
 	@staticmethod
 	def terminate():
-		if c.p.is_running_dllt():
-			if mainLLT.lltMode:
-				if mainLLT.lltMode == 'geo':
-					mainLLT.Geo.stop()
-				elif mainLLT.lltMode == 'res':
-					mainLLT.Res.stop()
-				mainLLT.lltMode = None
-			else:
-				c.p.DLLT_stop()
+		if mainLLT.lltMode:
+			if mainLLT.lltMode == 'geo':
+				mainLLT.Geo.stop()
+			elif mainLLT.lltMode == 'res':
+				mainLLT.Res.stop()
 			print 'LLT Terminated'
 		else:
-			print 'No Active LLT!'
+			print 'LLT Unterminated'
 
 	@staticmethod
 	def check():
@@ -2863,20 +3012,6 @@ class mainLLT():
 		return zpack[-1], respack[-1], maxZ, saturated
 
 	@staticmethod
-	def findThreshold(operation='asp',target=-130):
-		if not LLD.surfaceFound:
-			printy('Surface not found! Executing LLD...')
-			c.move_abs_z(-20,100,200)
-			if operation == 'asp': mainLLD.findSurface(LLD.zero-10, lld='dry')
-			elif operation == 'dsp': mainLLD.findSurface(LLD.zero-10, lld='wet')
-		mainLLT.r1,_ = mainLLT.preReading()
-		r2,_ = mainLLT.preReading(-c.PrereadingConfig.stepDown)
-		mainLLT.threshold = (r2 - mainLLT.r1)*c.PrereadingConfig.thresMultiplier
-		if   str.lower(operation) == 'asp': mainLLT.r2asp = r2
-		elif str.lower(operation) == 'dsp': mainLLT.r2dsp = r2
-		print 'r1: {} | r2: {} | Thres: {}'.format(mainLLT.r1, r2, mainLLT.threshold)
-
-	@staticmethod
 	def preReading(move=0):
 		if c.p.get_AD9833_Frequency() != c.PrereadingConfig.freq:
 			c.set_freq(c.PrereadingConfig.freq, c.PrereadingConfig.freq_delay)
@@ -2887,12 +3022,26 @@ class mainLLT():
 		return res, z
 
 	@staticmethod
+	def findThreshold(operation='asp'):
+		print 'Finding LLT Threshold..'
+		if LLD.surfaceFound:
+			c.move_abs_z(LLD.zero,100,200)
+		else:
+			c.move_abs_z(-30,100,200)
+			LLD.zero = mainLLD.findSurface(-130,lld='wet')
+		mainLLT.r1,_ = mainLLT.preReading()
+		r2,_ = mainLLT.preReading(-c.PrereadingConfig.stepDown)
+		mainLLT.threshold = (r2 - mainLLT.r1)*c.PrereadingConfig.thresMultiplier
+		if   str.lower(operation) == 'asp': mainLLT.r2asp = r2
+		elif str.lower(operation) == 'dsp': mainLLT.r2dsp = r2
+		print 'r1: {} | r2: {} | Thres: {}'.format(mainLLT.r1, r2, mainLLT.threshold)
+
+	@staticmethod
 	def test_setUp(tip, volume,iters=1):
 		printy("LLT Pipetting Test Started..")
 		targets = {20: -130, 200: -120, 1000: -40}
-		target = targets[tip]
 		vols = vol_calibrate([volume], tip); vol = vols[0]
-		mainLLT.run(target)
+		mainLLT.run()
 		mainLLT.testStat = True
 		for i in range(iters):
 			time.sleep(2)
@@ -2981,35 +3130,6 @@ class mainLLT():
 				c.clear_estop()
 				c.clear_motor_fault()
 llt = mainLLT()
-
-class BasicPipetting():
-	@staticmethod
-	def run(*args):
-		if args: pass
-		else:
-			avoidInpErr.reInput("Input Tip,Vol,")
-		targets = {20:-120, 200:-110, 1000:-70}
-		safes = {20:-40, 200: -30, 1000:0}
-		target = targets[tip]
-		# caddy deck
-		picktip()
-		# well deck
-		align()
-		lld.findSurface(target, lld='dry')
-		llt.run('asp')
-		aspirate(vol)
-		llt.terminate()
-		# target deck
-		align()
-		lld.findSurface(target, lld='wet')
-		llt.run('dsp')
-		dispense()
-		llt.terminate()
-		retract_press()
-		c.move_abs_z()
-		# caddy deck
-		align()
-		eject()
 
 class PvR(): # Pressure vs Resistance First Triggered
 	lastTestObj = None

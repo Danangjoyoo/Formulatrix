@@ -1831,7 +1831,7 @@ class chipCalibrationConfig():
 	lowerLimit = -148.0
 	colCompressTolerance = 4.0
 
-def setUp_plld(lowSpeed=False):
+def setUp_plld(lowSpeed=False, depthing=0):
 	p.set_valve_open_response_ms(PipettingConfig.NonPipettingResponseMS)
 	p.start_regulator_mode(2,PLLDConfig.flow,1,0,0)
 	p.set_AD9833_Frequency(PLLDConfig.freq)
@@ -1872,9 +1872,13 @@ def setUp_plld(lowSpeed=False):
 	if lowSpeed:
 		p.set_abort_config(AbortID.HardZ,0,pressure+collision+wlld+current,collision+wlld,0)
 	else: # normal PLLD
-		#p.set_abort_config(AbortID.HardZ,0,pressure+collision+current,collision,0) #for test p1000
-		p.set_abort_config(AbortID.NormalAbortZ,0,pressure+current+collision,collision,0)
-		p.set_abort_config(AbortID.HardZ,0,collision+wlld+current,collision+wlld,0)
+		if depthing == 0: # Normal PLLD
+			p.set_abort_config(AbortID.NormalAbortZ,0,pressure+current+collision,collision,0)
+			p.set_abort_config(AbortID.HardZ,0,collision+wlld+current,collision+wlld,0)
+		elif depthing == 1: # Hardbrake only
+			p.set_abort_config(AbortID.HardZ,0,pressure+collision+current,collision,0) #for depthing
+		elif depthing == 2: # Normal Brake only
+			p.set_abort_config(AbortID.NormalAbortZ,0,pressure+current+collision,collision,0)
 	sensorCatcher1 = PostTrigger('s1')
 	sensorCatcher1.start()
 	return p_ref

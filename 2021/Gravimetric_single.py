@@ -538,7 +538,7 @@ def wawik(rack=0,source='A1',target=-100,Deck=2,well='B3'):
 	c.move_abs_z(0,100,100)
 	align(Deck,well,-40)
 	c.set_collision_abort(30)
-	c.move_abs_z(target-30,20,100)
+	c.move_abs_z(target-50,20,100)
 	c.clear_abort_config(1)
 	c.clear_motor_fault()
 	c.move_rel_z(3,5,100,0)
@@ -546,7 +546,7 @@ def wawik(rack=0,source='A1',target=-100,Deck=2,well='B3'):
 	time.sleep(1)
 	c.abort_flow()
 	c.set_collision_abort(30)
-	c.move_abs_z(target-30,20,100)
+	c.move_abs_z(target-50,20,100)
 	c.clear_abort_config(1)
 	c.clear_motor_fault()
 	c.move_rel_z(3,5,100,0)
@@ -2046,7 +2046,7 @@ class Plotter():
 	init_travel = 0
 	avgTime = []
 	x = []
-	limit = 30
+	limit = 25
 	init = True
 	current_t = 0
 	before_t = 0
@@ -2126,7 +2126,6 @@ class Plotter():
 		Plotter.init_travel = 0
 		Plotter.avgTime = []
 		Plotter.x = []
-		Plotter.limit = 30
 		Plotter.init = True
 		for var in Plotter.varPack:	Plotter.varPack[var][0] = []
 
@@ -2174,6 +2173,7 @@ class Plotter():
 
 	@staticmethod
 	def checkVar():
+		print "Tick Limit in frame :", Plotter.limit
 		for var in Plotter.varPack:
 			val = Plotter.varPack[var]
 			print "Var: {}\t| Plot: {}\t| Scale: {}\t| Offset: {}\t".format(val[1],val[2],val[3],val[4])
@@ -2207,8 +2207,8 @@ class Plotter():
 			time.sleep(0.1)
 		# set limit
 		if len(Plotter.x) >= Plotter.limit:
-			Plotter.x.pop(0)
 			Plotter.tickPack.pop(0)
+			Plotter.x.pop(0)
 			for var in Plotter.varPack: Plotter.varPack[var][container].pop(0)
 		# movement
 		Plotter.tick += 1
@@ -2240,13 +2240,14 @@ class Plotter():
 		plt.cla()
 		for var in Plotter.varPack:
 			if Plotter.varPack[var][showStat]:
-				plt.plot(Plotter.x, Plotter.varPack[var][container], linewidth=1, label=var)
 				#plt.plot(Plotter.tickPack, Plotter.varPack[var][container], linewidth=1, label=Plotter.varPack[var][label])
+				plt.plot(Plotter.x, Plotter.varPack[var][container], linewidth=1, label=var)
+		elapsedTime = round(time.time() - t1, 4)
 		plt.legend(loc='upper left')
-		plt.title('Sensor Plotter | limit: {}'.format(Plotter.limit))
+		plt.xlabel('time (s)')
+		plt.title('Sensor Plotter | {} ms/tick'.format(elapsedTime))
 		plt.text(100,100,str(Plotter.limit))
         # end of plotting =======================
-        #print("Elapsed:", round(time.time() - t1, 4), "ms")
 plotter = Plotter()
 
 def preReadingPlotter(readCount=5,decrement=-1,customDelay=None):
@@ -2330,141 +2331,7 @@ class mainLLD():
 				return 'Z: {}\tP1: {}\tP2: {}\tR: {}'.format(round(LLD.zero,3), round(LLD.p1,3), round(LLD.p2,3), LLD.res)
 
 	@staticmethod
-	def goZero(manual=False,flow=3,dllt=True,tip=200):
-		c.clear_estop()
-		c.abort_flow(); retract_press(3,150); c.start_flow(flow)
-		if not tip == 1000:
-			z = -70
-		else:
-			z = -10
-			LLD.zero = -20
-		x,y = 0,0
-		p1,p2,r = 0,0,0
-		cre,n = 1,0
-		z_anchor = LLD.zero
-		sf_press, sf_res = False, False
-		p1_init = c.p.read_pressure_sensor(0)
-		p2_init = c.p.read_pressure_sensor(1)
-		r_init = c.p.read_dllt_sensor()
-		printr('Inital Value\t: p1 = {}\tp2 = {}\tr = {}'.format(p1_init,p2_init,r_init))
-		printr('LLD value\t: p1 = {}\tp2 = {}\tr = {}'.format(LLD.p1,LLD.p2,LLD.res))
-		if manual:
-			printy('Manual Tuning GoZERO : \nuse ctrl+up/down to control Z pos (+shift to speed up)\npress space when done..')
-			while True:
-				if kb.is_pressed('space'):
-					break
-				if kb.is_pressed('down+ctrl'):
-					z -= 3 if kb.is_pressed('shift') else 1
-				elif kb.is_pressed('up+ctrl'):
-					z += 3 if kb.is_pressed('shift') else 1
-				p1 = c.p.read_pressure_sensor(0)
-				p2 = c.p.read_pressure_sensor(1)
-				if dllt:
-					r = c.p.read_dllt_sensor()
-				c.p.move_motor_abs(0,z*100,100*100,100*100)
-				if c.p.read_collision_sensor() < 1000:
-					c.clear_motor_fault()
-					c.clear_estop()
-				print 'z: '+str(z)+'| P1 = '+str(p1)+' | P2 = '+str(p2)+' | Diff: '+str(p1-p2)+' | dllt: '+str(r)+'\r',
-			LLD.set_value(z,p1,p2+1,r)
-			print 'LLD Set >>', LLD.get_value(True)
-			printg('Manual GoZERO Finished')
-			print 'z: '+str(z)+'| P1 = '+str(p1)+' | P2 = '+str(p2)+' | Diff: '+str(p1-p2)+' | dllt: '+str(r)
-			c.abort_flow()
-			retract_press(10,100)
-			c.clear_motor_fault()
-			mainLLD.goZero(manual=False,tip=tip)
-		else:
-			printy('Auto Find GoZERO')
-			if LLD.res > r_init:
-				r_init = LLD.res
-			if abs(p2_init-LLD.p2) > 2:
-				c.abort_flow(); retract_press(10,150); c.start_flow(flow)
-			while True:
-				p1 = c.p.read_pressure_sensor(0)
-				p2 = c.p.read_pressure_sensor(1)
-				r = c.p.read_dllt_sensor()
-				if p2 < LLD.p2+5:
-					if p2_init < p2:
-						if r < r_init-100:
-							z += cre
-							n += 1; print n
-						else:
-							z -= cre
-					else:
-						z -= cre
-				else:
-					c.abort_flow(); retract_press(3,150); c.start_flow(flow)
-				if LLD.zero+10 < z:
-					cre = 3
-				elif LLD.zero+5 < z <= LLD.zero +10:
-					cre = 0.5
-				elif z < LLD.zero + 3:
-					cre = 0.1
-				if n >= 25 and r > r_init-100 and p2_init < p2 < LLD.p2+5:
-					break
-				c.p.move_motor_abs(0,z*100,100*100,100*100)
-				if c.p.read_collision_sensor() < 1000:
-					c.clear_motor_fault()
-					c.clear_estop()
-					z += 5
-				print 'z: '+str(z)+'| P1 = '+str(p1)+' | P2 = '+str(p2)+' | Diff: '+str(p1-p2)+' | dllt: '+str(r)+'\r',
-			LLD.set_value(z,p1,p2+1,r)
-			if z > z_anchor+10:
-				printr('\nZero Surface too far from estimation, Entering Addition Phase...')
-				mainLLD.goZero()
-			else:
-				printg('\n Zero Surface Found! Auto Tuning GoZERO Finished')
-				print 'LLD Set >>', LLD.get_value(True)
-				c.abort_flow()
-				c.clear_motor_fault()
-		c.set_estop_abort(500)
-
-	@staticmethod
-	def testGoZero(x):
-		filename = 'Level/LLDgoZeroCheck_'+ time.strftime('%Y%m%d%H%M%S', time.localtime(time.time())) + '.csv'
-		back_write(wraps(['n','Z','P1','P2','Resistance','Total Time']),filename)
-		for i in range(x):
-			print(i)
-			t1 = time.time()
-			mainLLD.goZero()
-			total = time.time() - t1
-			z,p1,p2,r = LLD.get_value()
-			back_write(wraps([str(i+1),str(z),str(p1),str(p2),str(r),str(total)]),filename)
-
-	@staticmethod
-	def varCheck(x):
-		c.start_flow(1)
-		p1_rec, p2_rec, r_rec = [], [], []
-		p1_tAvg,p2_tAvg,r_tAvg = [], [], []
-		p1_maxDev,p2_maxDev,r_maxDev = 0,0,0
-		filename = 'Level/LLDvariableCheck_'+ time.strftime('%Y%m%d%H%M%S', time.localtime(time.time())) + '.csv'
-		back_write(wraps(['P1','P2','Resistance']), filename)
-		for i in range(x):
-			p1 = c.p.read_pressure_sensor(0); p1_rec.append(p1)
-			p2 = c.p.read_pressure_sensor(1); p2_rec.append(p2)
-			r = c.p.read_dllt_sensor(); r_rec.append(r)
-			back_write(wraps([p1,p2,r]),filename,False)
-		p1_avg = np.average(p1_rec)
-		p2_avg = np.average(p2_rec)
-		r_avg = np.average(r_rec)
-		for i in range(x):
-			p1_t = abs(p1_avg - p1_rec[i]); p1_tAvg.append(p1_t/p1_avg)
-			p2_t = abs(p2_avg - p2_rec[i]); p2_tAvg.append(p2_t/p2_avg)
-			r_t = abs(r_avg - r_rec[i]); r_tAvg.append(r_t/r_avg)
-			if p1_t > p1_maxDev: p1_maxDev = p1_t 
-			if p2_t > p2_maxDev: p2_maxDev = p2_t
-			if r_t > r_maxDev: r_maxDev = r_t
-		p1_stability = np.average(p1_tAvg)
-		p2_stability = np.average(p2_tAvg)
-		r_stability = np.average(r_tAvg)
-		printb('Mean\t\t: P1: {}\tP2: {}\tRes: {}'.format(p1_avg, p2_avg, r_avg))
-		printb('Instability\t: P1: {}\tP2: {}\tRes: {}'.format(p1_stability, p2_stability, r_stability))
-		printb('Max Deviation\t: P1: {}\tP2: {}\tRes: {}'.format(p1_maxDev,p2_maxDev,r_maxDev))
-		c.abort_flow()
-
-	@staticmethod
-	def findSurface(depth=-80,lld='dry',lowSpeed=False):
+	def findSurface(depth=-80,lld='dry',lowSpeed=False,depthing=0):
 		LLD.reset()
 		print('FindSurface Started.. lld: {} | HighAccuracy: {} | depth: {}'.format(lld, lowSpeed, depth))
 		c.clear_estop()
@@ -2481,7 +2348,7 @@ class mainLLD():
 		if str.lower(lld) == 'dry':
 			Dry.reset()
 			c.p.set_stop_decel(0,c.PLLDConfig.decel,0)
-			Dry.pressLimit = c.setUp_plld(lowSpeed=lowSpeed)
+			Dry.pressLimit = c.setUp_plld(lowSpeed=lowSpeed, depthing=depthing)
 		elif str.lower(lld) == 'wet':
 			Wet.reset()
 			Wet.resLimit = c.setUp_wlld()
@@ -2665,10 +2532,9 @@ class mainLLD():
 								LLD.res_trig = True
 							if LLD.res_trig:
 								printr('Resistance triggered! Pressure Zero Surface Fail, Trying GoZERO...')
-								mainLLD.goZero()
-								zeros = LLD.zero
-								LLD.surfaceFound = True
-							printg('Zero Surface Found! Cleaning up the tip...')
+								LLD.surfaceFound = False
+							else:
+								printg('Zero Surface Found! Cleaning up the tip...')
 						Dry.reset()
 						Wet.reset()
 						if LLD.surfaceFound:
@@ -2868,7 +2734,40 @@ class mainLLD():
 						eject()
 				align(0, next_pickpos, pick_target+50)
 
-		@staticmethod
+		@staticmethod #Depthing with different flows
+		def depthing(tip=20,iters=5,depthing=0):
+			filename = 'Level/{}_{}xDepthingMode{}_{}.csv'.format(tip,iters,depthing,int(time.time()))
+			datas = []
+			targets = {20:-100,200:-90,1000:-60}
+			target = targets[tip]
+			for it in range(iters):
+				flows, zrefs, zdets = [], [], []
+				c.move_abs_z(target+30,100,200)
+				for flow in range(10,160,10):
+					anchorFlow = c.PLLDConfig.flow
+					c.PLLDConfig.flow = flow
+					zref = lld.findSurface(target, lowSpeed=True)
+					wawik(1,'D7',target+50)
+					#c.start_logger()
+					zdet = lld.findSurface(target,depthing=depthing)
+					#c.stop_logger()
+					print 'PLLD FLOW', c.PLLDConfig.flow
+					print 'zref:',zref,'| zdet:',zdet,'| flow:',flow
+					flows.append(flow)
+					zrefs.append(zref)
+					zdets.append(zdet)
+					c.PLLDConfig.flow = anchorFlow
+					wawik(1,'D7',target+50)
+					printy('ITER NO:',it,'| FLOW:',flow)
+				for i, flow in enumerate(flows):
+					print 'flow:',flow,'| zref:',zrefs[i],'| zdet:',zdets[i]
+					datas.append([flow,zrefs[i],zdets[i],zrefs[i]-zdets[i]])
+				datas.append([it+1,it+1,it+1,it+1])
+			df = pd.DataFrame(datas,columns=['Flow','Z Ref','Z PLLD','Depth'])
+			df.to_csv(filename, index=False)
+			printg('DONE!')
+
+		@staticmethod #referencing different flows by blowing the stem underwater
 		def flowReferencing(tip, flow):
 			print 'Flow : {}'.format(flow)
 			targets = {20:-125, 200:-115, 1000:-65}
@@ -2892,7 +2791,7 @@ class mainLLD():
 			c.abort_flow()
 			wawik(1,'D7',target-20)
 
-		@staticmethod
+		@staticmethod #referencing different res by WLLD
 		def resReferencing(tip, freq):
 			print 'Freq: {}'.format(freq)
 			targets = {20:-125, 200:-115, 1000:-65}
@@ -3213,26 +3112,36 @@ class PvR(): # Pressure vs Resistance First Triggered
 		else:
 			print 'No PvR have ran'
 
-def gas(opr='p'):
+def gas(opr='p', iters=5):
 	if opr == 'p':
-		flows, zrefs, zdets = [], [], []
-		for flow in range(10,160,10):
-			anchorFlow = c.PLLDConfig.flow
-			c.PLLDConfig.flow = flow
-			c.move_abs_z(-40,100,200)
-			zref = lld.findSurface(-70, lowSpeed=True)
-			wawik(1,'D7',-60)
-			#c.start_logger()
-			zdet = lld.findSurface(-70)
-			#c.stop_logger()
-			print 'PLLD FLOW', c.PLLDConfig.flow
-			print 'zref:',zref,'| zdet:',zdet,'| flow:',flow
-			flows.append(flow)
-			zrefs.append(zref)
-			zdets.append(zdet)
-			c.PLLDConfig.flow = anchorFlow
-			wawik(1,'D7',-60)
-		for i, flow in enumerate(flows): print 'flow:',flow,'| zref:',zrefs[i],'| zdet:',zdets[i]
+		filename = 'lognya/depthing.csv'
+		datas = []
+		for it in range(iters):
+			flows, zrefs, zdets = [], [], []
+			c.move_abs_z(-60,100,200)
+			for flow in range(10,160,10):
+				anchorFlow = c.PLLDConfig.flow
+				c.PLLDConfig.flow = flow
+				zref = lld.findSurface(-100, lowSpeed=True)
+				wawik(1,'D7',-55)
+				#c.start_logger()
+				zdet = lld.findSurface(-100)
+				#c.stop_logger()
+				print 'PLLD FLOW', c.PLLDConfig.flow
+				print 'zref:',zref,'| zdet:',zdet,'| flow:',flow
+				flows.append(flow)
+				zrefs.append(zref)
+				zdets.append(zdet)
+				c.PLLDConfig.flow = anchorFlow
+				wawik(1,'D7',-60)
+				print 'ITER NO:',it,'| FLOW:',flow
+			for i, flow in enumerate(flows):
+				print 'flow:',flow,'| zref:',zrefs[i],'| zdet:',zdets[i]
+				datas.append([flow,zrefs[i],zdets[i],zrefs[i]-zdets[i]])
+			datas.append([it,it,it,it])
+		df = pd.DataFrame(datas,columns=['Flow','Z Ref','Z PLLD','Depth'])
+		df.to_csv(filename, index=False)
+
 	elif opr == 'w':
 		freqs, zrefs, zdets = [],[],[]
 		for freq in range(100,1100,100):

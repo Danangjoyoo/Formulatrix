@@ -5,9 +5,11 @@ import time, math, sys
 from tabulate import tabulate
 import pandas as pd
 from pandas import read_csv
-import threading, winsound, keyboard as kb, string, numpy as np, colorama as cora, random as rd
+import threading, winsound, os, sys
+import keyboard as kb, string, numpy as np, colorama as cora, random as rd
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
+from pyqtgraph.Qt import QtCore
 
 
 w_eng_value = 4.5454545454
@@ -551,7 +553,7 @@ def wawik(rack=0,source='A1',target=-100,Deck=2,well='B3'):
 	c.clear_motor_fault()
 	c.move_rel_z(3,5,100,0)
 	c.move_abs_z(0,100,100)
-	align(rack,source,z+5)
+	align(rack,source,z+10)
 
 def dllt_linearity():
 
@@ -2185,6 +2187,9 @@ class Plotter():
 			Plotter.plotStat = True
 			ani = FuncAnimation(plt.gcf(), Plotter.autoUpdate, interval=5)
 			plt.show()
+			#timer = QtCore.QTimer()
+			#timer.timeout.connect(lambda: plt.show())
+			#timer.start(50)			
 		else:
 			printr("Input sensor that you want to plot! (Ex: p2=True, p1= True)")
 
@@ -2331,17 +2336,44 @@ class mainLLD():
 				return 'Z: {}\tP1: {}\tP2: {}\tR: {}'.format(round(LLD.zero,3), round(LLD.p1,3), round(LLD.p2,3), LLD.res)
 
 	@staticmethod
+	def manualStem(flow=c.PLLDConfig.flow):
+		c.clear_estop()
+		c.abort_flow(); c.start_flow(flow)
+		sf_press, sf_res = False, False
+		p1_init = c.p.read_pressure_sensor(0)
+		p2_init = c.p.read_pressure_sensor(1)
+		r_init = c.p.read_dllt_sensor()
+		z = c.p.get_motor_pos(0)/100.0
+		printr('Inital Value\t: p1 = {}\tp2 = {}\tr = {}'.format(p1_init,p2_init,r_init))
+		printy('Use ctrl+up/down to control Z pos (+shift to speed up)\npress space to terminate..')
+		while True:
+			if kb.is_pressed('space'): break
+			if kb.is_pressed('down+ctrl'): z -= 3 if kb.is_pressed('shift') else 1
+			elif kb.is_pressed('up+ctrl'): z += 3 if kb.is_pressed('shift') else 1
+			p1 = c.p.read_pressure_sensor(0)
+			p2 = c.p.read_pressure_sensor(1)
+			r = c.p.read_dllt_sensor()
+			c.p.move_motor_abs(0,z*100,100*100,100*100)
+			if c.p.read_collision_sensor() < 1000:
+				c.clear_motor_fault()
+				c.clear_estop()
+			print 'z: '+str(z)+'| P1 = '+str(p1)+' | P2 = '+str(p2)+' | Diff: '+str(p1-p2)+' | dllt: '+str(r)+'\r',
+		printg('\nManual Stem Terminated')
+		c.abort_flow()
+		c.clear_motor_fault()
+
+	@staticmethod
 	def findSurface(depth=-80,lld='dry',lowSpeed=False,depthing=0):
 		LLD.reset()
 		print('FindSurface Started.. lld: {} | HighAccuracy: {} | depth: {}'.format(lld, lowSpeed, depth))
 		c.clear_estop()
 		c.clear_motor_fault()
+		anchorFlow = c.PLLDConfig.flow
 		if lowSpeed:
-			flow, flow_delay = LLD.lowSpeed_flow, 250
-			stem_vel,stem_acc = 2,5
+			c.PLLDConfig.flow = LLD.lowSpeed_flow
+			stem_vel = 2
+			stem_acc = 5
 		else:
-			flow = c.PLLDConfig.flow
-			flow_delay = c.PLLDConfig.flow_delay
 			stem_vel = c.PLLDConfig.stem_vel
 			stem_acc = c.PLLDConfig.stem_acc
 		depth -= c.chipCalibrationConfig.colCompressTolerance
@@ -2359,8 +2391,12 @@ class mainLLD():
 			if not lowSpeed:
 				if c.get_triggered_input(c.AbortID.NormalAbortZ) == 1 << c.InputAbort.PressureSensor2:
 					Dry.press_trig = True
+				elif c.get_triggered_input(c.AbortID.NormalAbortZ) == 1 << c.InputAbort.LiquidLevelSensor:
+					Dry.res_trig = True
 				if c.get_triggered_input(c.AbortID.HardZ) == 1 << c.InputAbort.LiquidLevelSensor:
 					Dry.res_trig = True
+				elif c.get_triggered_input(c.AbortID.HardZ) == 1 << c.InputAbort.PressureSensor2:
+					Dry.press_trig = True
 				Dry.NormalZ_trig = c.check_triggered_input(c.AbortID.NormalAbortZ)
 				Dry.HardZ_trig = c.check_triggered_input(c.AbortID.HardZ)
 			else:
@@ -2414,6 +2450,7 @@ class mainLLD():
 				printb('Surface found at Wet')
 			else:
 				printy("Resistance Limit isn't reached at Wet")
+		if lowSpeed: c.PLLDConfig.flow = anchorFlow
 		c.PostTrigger.terminateAll()
 		return zero
 
@@ -2735,10 +2772,13 @@ class mainLLD():
 				align(0, next_pickpos, pick_target+50)
 
 		@staticmethod #Depthing with different flows
-		def depthing(tip=20,iters=5,depthing=0):
-			filename = 'Level/{}_{}xDepthingMode{}_{}.csv'.format(tip,iters,depthing,int(time.time()))
+		def dryDepthing(tip=20,iters=3,depthing=0): # PLLD test in the number of iterations
+			# Depthing 0: Normal PLLD (Hard + Normal)
+			# Depthing 1: Hard Brake
+			# Depthing 2: Normal Brake
+			filename = 'Level/{}_{}xDryDepthingMode{}_{}.csv'.format(tip,iters,depthing,int(time.time()))
 			datas = []
-			targets = {20:-100,200:-90,1000:-60}
+			targets = {20:-100,200:-90,1000:-40}
 			target = targets[tip]
 			for it in range(iters):
 				flows, zrefs, zdets = [], [], []
@@ -2767,7 +2807,40 @@ class mainLLD():
 			df.to_csv(filename, index=False)
 			printg('DONE!')
 
-		@staticmethod #referencing different flows by blowing the stem underwater
+		@staticmethod
+		def wetDepthing(tip=20,iters=3): # WLLD test in the number of iterations
+			filename = 'Level/{}_{}wetDepthing_{}.csv'.format(tip,iters,int(time.time()))
+			datas = []
+			targets = {20:-100,200:-90,1000:-50}
+			target = targets[tip]
+			for it in range(iters):
+				freqs, zrefs, zdets = [], [], []
+				c.move_abs_z(target+20,100,200)
+				for freq in range(100,1100,100):
+					anchorFreq = c.PLLDConfig.freq
+					c.PLLDConfig.freq = freq
+					zref = lld.findSurface(target, lowSpeed=True)
+					c.move_rel_z(10,100,200)
+					wawik(1,'D7',target)
+					#c.start_logger()
+					zdet = lld.findSurface(target,lld='wet')
+					#c.stop_logger()
+					print 'PLLD Freq', c.PLLDConfig.freq
+					print 'zref:',zref,'| zdet:',zdet,'| freq:',freq
+					freqs.append(freq)
+					zrefs.append(zref)
+					zdets.append(zdet)
+					c.PLLDConfig.freq = anchorFreq
+					wawik(1,'D7',target)
+				for i, freq in enumerate(freqs):
+					print 'flow:',freq,'| zref:',zrefs[i],'| zdet:',zdets[i]
+					datas.append([freq,zrefs[i],zdets[i],zrefs[i]-zdets[i]])
+				datas.append([it+1,it+1,it+1,it+1])
+			df = pd.DataFrame(datas,columns=['Freq','Z Ref','Z PLLD','Depth'])
+			df.to_csv(filename, index=False)
+			printg('DONE!')
+
+		@staticmethod #base method for referencing different flows by blowing the stem underwater
 		def flowReferencing(tip, flow):
 			print 'Flow : {}'.format(flow)
 			targets = {20:-125, 200:-115, 1000:-65}
@@ -2791,8 +2864,8 @@ class mainLLD():
 			c.abort_flow()
 			wawik(1,'D7',target-20)
 
-		@staticmethod #referencing different res by WLLD
-		def resReferencing(tip, freq):
+		@staticmethod #base method for surface referencing different res by WLLD
+		def resReferencing(tip=20, freq=c.PLLDConfig.freq):
 			print 'Freq: {}'.format(freq)
 			targets = {20:-125, 200:-115, 1000:-65}
 			target = targets[tip]
@@ -2805,6 +2878,57 @@ class mainLLD():
 			printr('Zero: {} | Freq: {}'.format(zero, freq))
 			c.WLLDConfig.freq = anchor
 			return zero, freq
+
+		@staticmethod
+		def farDepthing(tip,pickpos,iters,flow,thres,dyn): #for p1000 long travel LLD
+			filename = 'Level/P{}_HardDepthing_{}uLs_th{}_dyn{}_{}.csv'.format(tip,flow,thres,dyn,int(time.time()))
+			datas = []
+			# z picktip
+			pick_targets 	= {20	:-131, 	200		:-121, 	1000	:-116}
+			targets 		= {20 	:-100, 	200 	:-90, 	1000	:-110}
+			safes 			= {20	:-55,	200		:-35,	1000	:0}
+			deck.setZeroDeckMode(tip)
+			speedMode('plate')
+			next_pickpos = str.upper(pickpos)
+			pick_target = pick_targets[tip]
+			target = targets[tip]
+			safe = safes[tip]
+			source = 'D7'
+			anchorF = c.PLLDConfig.flow
+			c.PLLDConfig.flow = flow
+			anchorT = c.PLLDConfig.pressThres
+			c.PLLDConfig.pressThres = thres
+			anchorD = c.PLLDConfig.useDynamic
+			c.PLLDConfig.useDynamic = dyn
+			for i in range(iters):
+				if tip == 1000:
+					picktipstat = manualPicktip(next_pickpos, pick_target)
+				else:
+					picktipstat = picktip(next_pickpos,pick_target,safe)
+				pickpos 		= next_pickpos
+				next_pickpos 	= picktipstat[1]
+				ejectpos		= picktipstat[2]
+				if picktipstat[0]:
+					align(1,source,target+10)
+					zref = lld.findSurface(target, lowSpeed=True)
+					c.move_abs_z(0,200,300)			
+					wawik(1,source,0)
+					c.move_abs_z(0,200,300)
+					zdet = lld.findSurface(target,depthing=1)
+					wawik(0,pickpos,pick_target+15)
+					c.move_abs_z(pick_target+15,200,500)
+					datas.append([c.PLLDConfig.flow, c.PLLDConfig.pressThres, c.PLLDConfig.useDynamic, zref, zdet, zref-zdet])
+					#align(0,pickpos,pick_target+15)
+					eject()
+			c.move_abs_z(0,200,300)
+			printg('DONE')
+			c.PLLDConfig.flow = anchorF
+			c.PLLDConfig.pressThres = anchorT
+			c.PLLDConfig.UseDynamic = anchorD
+			df = pd.DataFrame(datas,columns=['Flow','Threshold','Dynamic Thresh', 'Z Ref', 'Z Det', 'Depth'])
+			df.to_csv(filename,index=False)
+			speedMode('grav')
+
 lld = mainLLD()
 
 LLD = mainLLD.Operation('LLD')
@@ -3112,48 +3236,7 @@ class PvR(): # Pressure vs Resistance First Triggered
 		else:
 			print 'No PvR have ran'
 
-def gas(opr='p', iters=5):
-	if opr == 'p':
-		filename = 'lognya/depthing.csv'
-		datas = []
-		for it in range(iters):
-			flows, zrefs, zdets = [], [], []
-			c.move_abs_z(-60,100,200)
-			for flow in range(10,160,10):
-				anchorFlow = c.PLLDConfig.flow
-				c.PLLDConfig.flow = flow
-				zref = lld.findSurface(-100, lowSpeed=True)
-				wawik(1,'D7',-55)
-				#c.start_logger()
-				zdet = lld.findSurface(-100)
-				#c.stop_logger()
-				print 'PLLD FLOW', c.PLLDConfig.flow
-				print 'zref:',zref,'| zdet:',zdet,'| flow:',flow
-				flows.append(flow)
-				zrefs.append(zref)
-				zdets.append(zdet)
-				c.PLLDConfig.flow = anchorFlow
-				wawik(1,'D7',-60)
-				print 'ITER NO:',it,'| FLOW:',flow
-			for i, flow in enumerate(flows):
-				print 'flow:',flow,'| zref:',zrefs[i],'| zdet:',zdets[i]
-				datas.append([flow,zrefs[i],zdets[i],zrefs[i]-zdets[i]])
-			datas.append([it,it,it,it])
-		df = pd.DataFrame(datas,columns=['Flow','Z Ref','Z PLLD','Depth'])
-		df.to_csv(filename, index=False)
 
-	elif opr == 'w':
-		freqs, zrefs, zdets = [],[],[]
-		for freq in range(100,1100,100):
-			print 'FREQ:',freq
-			wawik(1,'D7',-70)
-			c.move_abs_z(-70, 100, 100)
-			zref = lld.findSurface(-90,lowSpeed=True)
-			zdet,f = lld.test.resReferencing(20,freq)
-			freqs.append(freq)
-			zrefs.append(zref)
-			zdets.append(zdet)
-		for i, freq in enumerate(freqs): print 'freq:',freq,'| zrefs',zrefs[i],'| zdet:',zdets[i]
 
 
 # ALWAYS RE-SETUP EVERY TIME CHANNEL IS CHANGED

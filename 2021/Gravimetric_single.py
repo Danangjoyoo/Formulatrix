@@ -1988,11 +1988,11 @@ class Plotter():
 	filename = None
 
 	@staticmethod
-	def plot_logging(start=True,thread=False):
+	def plot_logging(start=True,thread=False,addName=""):
 		if start:
 			n = 0
 			Plotter.getData = True
-			filename = 'Level\plot_sensor_{}.csv'.format(int(time.time()))
+			filename = 'Level/plot_sensor{}_{}.csv'.format(addName,int(time.time()))
 			Plotter.filename = filename
 			datas = []
 			# movement
@@ -2031,8 +2031,11 @@ class Plotter():
 				cols = ['t','travel','vel','acc','col','res','p1','p2']
 				df = pd.DataFrame(datas,columns=cols)
 				df.to_csv(filename,index=False)
+				lastLen = 0
+				init_t = 0
+				filename = None
 			else:
-				thread1 = threading.Thread(target=Plotter.plot_logging,args=(1,1))
+				thread1 = threading.Thread(target=Plotter.plot_logging,args=(1,1,addName))
 				thread1.start()
 		else:
 			Plotter.getData = False
@@ -2787,7 +2790,8 @@ class mainLLD():
 					anchorFlow = c.PLLDConfig.flow
 					c.PLLDConfig.flow = flow
 					zref = lld.findSurface(target, lowSpeed=True)
-					wawik(1,'D7',target+50)
+					c.move_rel_z(5,100,200)
+					wawik(1,'D7',target+20)
 					#c.start_logger()
 					zdet = lld.findSurface(target,depthing=depthing)
 					#c.stop_logger()
@@ -2797,7 +2801,7 @@ class mainLLD():
 					zrefs.append(zref)
 					zdets.append(zdet)
 					c.PLLDConfig.flow = anchorFlow
-					wawik(1,'D7',target+50)
+					wawik(1,'D7',target+20)
 					printy('ITER NO:',it,'| FLOW:',flow)
 				for i, flow in enumerate(flows):
 					print 'flow:',flow,'| zref:',zrefs[i],'| zdet:',zdets[i]
@@ -2940,6 +2944,70 @@ Wet = mainLLD.Operation('WET')
 Wet.useDynamic = False
 
 class mainLLT():
+	class Geo():
+		@staticmethod
+		def init(operation='asp'):
+			mainLLT.lltMode = 'geo'
+			mainLLT.Geo.stop()
+			if not mainLLT.threshold: mainLLT.findThreshold(operation=operation)
+			print 'Geometric LLT initialized..'
+
+		@staticmethod
+		def start():
+			print 'Geometric LLT started..'
+			c.set_collision_abort(c.DLLTConfig.Geo.colThres)
+			c.p.set_tracking_limit(True, c.chipCalibrationConfig.upperLimit*c.stem_eng, c.chipCalibrationConfig.lowerLimit*c.stem_eng)
+			c.p.set_motor_tracking_config(
+				c.DLLTConfig.Geo.trackFactor,
+				mainLLT.threshold,
+				c.DLLTConfig.Geo.stem_vel,
+				c.DLLTConfig.Geo.stem_acc,
+				c.DLLTConfig.Geo.inverted,
+				c.DLLTConfig.Geo.startVolThres,
+				1)
+			c.p.set_motor_tracking_running(True)
+
+		@staticmethod
+		def stop():
+			print 'Geometric LLT Stopped..'
+			c.p.set_motor_tracking_running(False)
+			if c.get_triggered_input(c.AbortID.NormalAbortZ) or c.get_triggered_input(c.AbortID.HardZ):
+				print 'Motion Config Cleared..'
+				c.clear_abort_config(c.AbortID.EstopOut)
+				c.clear_abort_config(c.AbortID.NormalAbortZ)
+				c.clear_abort_config(c.AbortID.HardZ)
+				c.clear_estop()
+				c.clear_motor_fault()
+	class Res():
+		@staticmethod
+		def init(operation='asp'):
+			mainLLT.lltMode = 'res'
+			if not mainLLT.threshold: mainLLT.findThreshold(operation=operation)
+			mainLLT.Res.stop()
+			c.p.set_dllt_pid(c.DLLTConfig.Res.kp, c.DLLTConfig.Res.ki, c.DLLTConfig.Res.kd, c.DLLTConfig.Res.samplingTime)
+			c.p.set_dllt_move_profile(c.DLLTConfig.Res.stem_vel*c.stem_eng, c.DLLTConfig.Res.stem_acc*c.stem_eng, c.DLLTConfig.Res.inverted)
+			print 'Resistance LLT initialized..'
+
+		@staticmethod
+		def start():
+			print 'Resistance LLT Started..'
+			c.set_collision_abort(c.DLLTConfig.Res.colThres)
+			#c.p.set_dllt_limit(True, c.PrereadingConfig.dlltMinThres, c.PrereadingConfig.dlltMaxThres)
+			c.p.start_dllt(mainLLT.threshold, c.DLLTConfig.Res.stepSize, c.DLLTConfig.Res.bigStep)
+
+		@staticmethod
+		def stop():
+			print 'Resistance LLT Stopped..'
+			c.p.stop_dllt()
+			if c.get_triggered_input(c.AbortID.NormalAbortZ) or c.get_triggered_input(c.AbortID.HardZ):
+				print 'Motion Config Cleared..'
+				c.clear_abort_config(c.AbortID.EstopOut)
+				c.clear_abort_config(c.AbortID.NormalAbortZ)
+				c.clear_abort_config(c.AbortID.HardZ)
+				c.clear_estop()
+				c.clear_motor_fault()
+	
+	# Main Attributes
 	r1 = 0
 	r2asp = 0
 	r2dsp = 0
@@ -3085,73 +3153,10 @@ class mainLLT():
 			while not mainLLT.testStat: time.sleep(0.1)
 			Plotter.plot_realtime(p1=True,p2=True,res=True,vel=True)
 		else:
-			Plotter.plot_logging(1)
+			Plotter.plot_logging(1,addName='LLT_p'+str(tip))
 			mainLLT.test_setUp(tip, volume, iters)
 			Plotter.plot_logging(0)
 
-	class Geo():
-		@staticmethod
-		def init(operation='asp'):
-			mainLLT.lltMode = 'geo'
-			mainLLT.Geo.stop()
-			if not mainLLT.threshold: mainLLT.findThreshold(operation=operation)
-			print 'Geometric LLT initialized..'
-
-		@staticmethod
-		def start():
-			print 'Geometric LLT started..'
-			c.set_collision_abort(c.DLLTConfig.Geo.colThres)
-			c.p.set_tracking_limit(True, c.chipCalibrationConfig.upperLimit*c.stem_eng, c.chipCalibrationConfig.lowerLimit*c.stem_eng)
-			c.p.set_motor_tracking_config(
-				c.DLLTConfig.Geo.trackFactor,
-				mainLLT.threshold,
-				c.DLLTConfig.Geo.stem_vel,
-				c.DLLTConfig.Geo.stem_acc,
-				c.DLLTConfig.Geo.inverted,
-				c.DLLTConfig.Geo.startVolThres,
-				1)
-			c.p.set_motor_tracking_running(True)
-
-		@staticmethod
-		def stop():
-			print 'Geometric LLT Stopped..'
-			c.p.set_motor_tracking_running(False)
-			if c.get_triggered_input(c.AbortID.NormalAbortZ) or c.get_triggered_input(c.AbortID.HardZ):
-				print 'Motion Config Cleared..'
-				c.clear_abort_config(c.AbortID.EstopOut)
-				c.clear_abort_config(c.AbortID.NormalAbortZ)
-				c.clear_abort_config(c.AbortID.HardZ)
-				c.clear_estop()
-				c.clear_motor_fault()
-
-	class Res():
-		@staticmethod
-		def init(operation='asp'):
-			mainLLT.lltMode = 'res'
-			if not mainLLT.threshold: mainLLT.findThreshold(operation=operation)
-			mainLLT.Res.stop()
-			c.p.set_dllt_pid(c.DLLTConfig.Res.kp, c.DLLTConfig.Res.ki, c.DLLTConfig.Res.kd, c.DLLTConfig.Res.samplingTime)
-			c.p.set_dllt_move_profile(c.DLLTConfig.Res.stem_vel*c.stem_eng, c.DLLTConfig.Res.stem_acc*c.stem_eng, c.DLLTConfig.Res.inverted)
-			print 'Resistance LLT initialized..'
-
-		@staticmethod
-		def start():
-			print 'Resistance LLT Started..'
-			c.set_collision_abort(c.DLLTConfig.Res.colThres)
-			#c.p.set_dllt_limit(True, c.PrereadingConfig.dlltMinThres, c.PrereadingConfig.dlltMaxThres)
-			c.p.start_dllt(mainLLT.threshold, c.DLLTConfig.Res.stepSize, c.DLLTConfig.Res.bigStep)
-
-		@staticmethod
-		def stop():
-			print 'Resistance LLT Stopped..'
-			c.p.stop_dllt()
-			if c.get_triggered_input(c.AbortID.NormalAbortZ) or c.get_triggered_input(c.AbortID.HardZ):
-				print 'Motion Config Cleared..'
-				c.clear_abort_config(c.AbortID.EstopOut)
-				c.clear_abort_config(c.AbortID.NormalAbortZ)
-				c.clear_abort_config(c.AbortID.HardZ)
-				c.clear_estop()
-				c.clear_motor_fault()
 llt = mainLLT()
 
 class PvR(): # Pressure vs Resistance First Triggered

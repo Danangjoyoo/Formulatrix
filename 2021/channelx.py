@@ -1844,8 +1844,8 @@ def setUp_plld(lowSpeed=False, depthing=0):
 	pressThres = 0
 	if PLLDConfig.useDynamic:
 		global Max_p2, Min_p2
-		print 'P2 Value', Max_p2, Min_p2
-		pressThres = (Max_p2 - Min_p2)/2.0*PLLDConfig.pressThres
+		print 'P2 Value (Max, Min)', Max_p2, Min_p2
+		pressThres = ((Max_p2 - Min_p2)/2.0)*PLLDConfig.pressThres
 	else:
 		pressThres = PLLDConfig.pressThres
 	print p_ref, pressThres

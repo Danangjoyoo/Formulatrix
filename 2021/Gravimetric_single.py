@@ -1986,6 +1986,7 @@ class Plotter():
 	lastLen = 0
 	init_t = 0
 	filename = None
+	logs = {}
 
 	@staticmethod
 	def plot_logging(start=True,thread=False,addName=""):
@@ -2031,6 +2032,7 @@ class Plotter():
 				cols = ['t','travel','vel','acc','col','res','p1','p2']
 				df = pd.DataFrame(datas,columns=cols)
 				df.to_csv(filename,index=False)
+				for i in range(len(cols)): Plotter.logs[cols[i]] = datas[i]
 				lastLen = 0
 				init_t = 0
 				filename = None
@@ -2781,7 +2783,7 @@ class mainLLD():
 			# Depthing 2: Normal Brake
 			filename = 'Level/{}_{}xDryDepthingMode{}_{}.csv'.format(tip,iters,depthing,int(time.time()))
 			datas = []
-			targets = {20:-100,200:-90,1000:-40}
+			targets = {20:-115,200:-105,1000:-55}
 			target = targets[tip]
 			for it in range(iters):
 				flows, zrefs, zdets = [], [], []
@@ -2791,7 +2793,7 @@ class mainLLD():
 					c.PLLDConfig.flow = flow
 					zref = lld.findSurface(target, lowSpeed=True)
 					c.move_rel_z(5,100,200)
-					wawik(1,'D7',target+20)
+					wawik(1,'D7',target+30)
 					#c.start_logger()
 					zdet = lld.findSurface(target,depthing=depthing)
 					#c.stop_logger()
@@ -2801,7 +2803,7 @@ class mainLLD():
 					zrefs.append(zref)
 					zdets.append(zdet)
 					c.PLLDConfig.flow = anchorFlow
-					wawik(1,'D7',target+20)
+					wawik(1,'D7',target+30)
 					printy('ITER NO:',it,'| FLOW:',flow)
 				for i, flow in enumerate(flows):
 					print 'flow:',flow,'| zref:',zrefs[i],'| zdet:',zdets[i]
@@ -2815,7 +2817,7 @@ class mainLLD():
 		def wetDepthing(tip=20,iters=3): # WLLD test in the number of iterations
 			filename = 'Level/{}_{}wetDepthing_{}.csv'.format(tip,iters,int(time.time()))
 			datas = []
-			targets = {20:-100,200:-90,1000:-50}
+			targets = {20:-115,200:-105,1000:-60}
 			target = targets[tip]
 			for it in range(iters):
 				freqs, zrefs, zdets = [], [], []
@@ -3128,22 +3130,47 @@ class mainLLT():
 		print 'r1: {} | r2: {} | Thres: {}'.format(mainLLT.r1, r2, mainLLT.threshold)
 
 	@staticmethod
-	def test_setUp(tip, volume,iters=1):
+	def test_setUp(tip, volume,iters=1, log=False):
 		printy("LLT Pipetting Test Started..")
 		targets = {20: -130, 200: -120, 1000: -40}
 		vols = vol_calibrate([volume], tip); vol = vols[0]
 		mainLLT.run()
 		mainLLT.testStat = True
+		if log: Plotter.plot_logging(1,addName='LLT_p'+str(tip))
 		for i in range(iters):
 			time.sleep(2)
 			aspirate(vol, tip)
 			time.sleep(2)
 			dispense(vol, tip)
 		time.sleep(2)
+		if log: Plotter.plot_logging(0)
 		mainLLT.terminate()
 		c.move_rel_z(30,100,200)
 		mainLLT.testStat = False
 		printy("LLT Pipetting Test Finished..")
+		if log:
+			# Response Delay
+			tPack = Plotter.logs['t']
+			resPack = Plotter.logs['res']
+			velPack = Plotter.logs['vel']
+			t_res, t_vel = [], []
+			for i, t in enumerate(tPack):
+				if i >= 3:
+					if respack[i] - respack[i-2] >= 100: t_res.append(t)
+					if velPack[i] - respack[i-2] >= 100: t_vel.append(t)
+			if len(t_res) == 0: t_res = [tPack[-1]]
+			if len(t_vel) == 0: t_vel = [tPack[-1]]
+			response_delay = t_vel[0] - t_res[0]
+			# Similarity
+			gaps, devs = [], []
+			for i in range(len(tPack)): gaps.append(resPack[i] - velPack[i])
+			avgGap = np.average(gaps)
+			for gap in gaps: devs.append(abs(gap - avgGap))
+			avgDev = np.average(devs)
+			similarity = round((avgGap-avgDev)/avgGap,4)
+			printb('Similarity: {} | Response Delay: {} ms'.format(similarity, response_delay))
+			return similarity, response_delay
+
 
 	@staticmethod
 	def pipettingTest(tip, volume,iters=1,live=True):
@@ -3153,9 +3180,8 @@ class mainLLT():
 			while not mainLLT.testStat: time.sleep(0.1)
 			Plotter.plot_realtime(p1=True,p2=True,res=True,vel=True)
 		else:
-			Plotter.plot_logging(1,addName='LLT_p'+str(tip))
-			mainLLT.test_setUp(tip, volume, iters)
-			Plotter.plot_logging(0)
+			return mainLLT.test_setUp(tip, volume, iters, log=True)
+
 
 llt = mainLLT()
 

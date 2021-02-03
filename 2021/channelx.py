@@ -1903,9 +1903,9 @@ def setUp_wlld():
 	sensorCatcher2.start()
 	return p.read_dllt_sensor()-PLLDConfig.resThres
 
-postPress = None
-postRes = None
 class PostTrigger(threading.Thread):
+	press = None
+	res = None
 	def __init__(self,name):
 		threading.Thread.__init__(self)
 		self.name = name
@@ -1916,15 +1916,15 @@ class PostTrigger(threading.Thread):
 	def run(self):
 		print 'Post Press-Res Catcher Started..'
 		self.checkingPostValue()
-		globals()['postPress'] = self.postPress
-		globals()['postRes'] = self.postRes
+		PostTrigger.press = self.postPress
+		PostTrigger.res = self.postRes
 		#print 'THIS IS THE TRUE...{}, {}'.format(self.postPress, self.postRes)
 		#print 'Post Press-Res Catcher Stopped..'
 
 	def checkingPostValue(self):
 		self.checkStat = True
-		globals()['postPress'] = None
-		globals()['postRes'] = None
+		PostTrigger.press = None
+		PostTrigger.res = None
 		while self.checkStat:
 			if get_triggered_input(AbortID.NormalAbortZ) or get_triggered_input(AbortID.HardZ):
 				self.postPress = p.read_pressure_sensor(1)
@@ -1941,6 +1941,26 @@ class PostTrigger(threading.Thread):
 			try: i.terminate()
 			except: pass
 
+def check_triggered_input(id):
+	inputPack ={
+		1<<0 : 'PressureSensor1',
+		1<<1 : 'PressureSensor2',
+		1<<2 : 'CollisionEstop',
+		1<<3 : 'CollisionTouch',
+		1<<4 : 'WLLDs',
+		1<<5 : 'EStop',
+		1<<6 : 'Touchoff',
+		1<<7 : 'CurrentMotorZ',
+		1<<8 : 'LiquidLevelSensor',
+		1<<9 : 'LiquidBreachDetection'
+	}
+	if get_triggered_input(id) in inputPack:
+		return inputPack[get_triggered_input(id)]
+	else:
+		return None
+
+def get_triggered_input(id):
+	return p.get_triggered_inputs(id)
 
 def setUp_dllt():
 	p.set_motor_tracking_running(False)
@@ -2001,27 +2021,6 @@ def set_wlld_abort(thres):
 	current = 1 <<InputAbort.CurrentMotorZ
 	wlld = 1 << InputAbort.LiquidLevelSensor
 	p.set_abort_config(abort_id,0,current+collision+wlld,collision+wlld,0)
-
-def check_triggered_input(id):
-	inputPack ={
-		1<<0 : 'PressureSensor1',
-		1<<1 : 'PressureSensor2',
-		1<<2 : 'CollisionEstop',
-		1<<3 : 'CollisionTouch',
-		1<<4 : 'WLLDs',
-		1<<5 : 'EStop',
-		1<<6 : 'Touchoff',
-		1<<7 : 'CurrentMotorZ',
-		1<<8 : 'LiquidLevelSensor',
-		1<<9 : 'LiquidBreachDetection'
-	}
-	if get_triggered_input(id) in inputPack:
-		return inputPack[get_triggered_input(id)]
-	else:
-		return None
-
-def get_triggered_input(id):
-	return p.get_triggered_inputs(id)
 
 def format_float(input_data):
 	return float("{0:.2f}".format(input_data))

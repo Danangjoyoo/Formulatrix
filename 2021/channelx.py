@@ -2024,7 +2024,7 @@ def check_triggered_input(id):
 def get_triggered_input(id):
 	return p.get_triggered_inputs(id)
 
-def sensorRate(dur=None):
+def sensorRate(dur=0):
 	print 'Press SPACE to stop..'
 	t0 = time.time()
 	p1pack, p2pack, respack, colpack = [],[],[],[];	varpack = [p1pack, p2pack, respack, colpack]
@@ -2037,13 +2037,14 @@ def sensorRate(dur=None):
 		res = p.read_dllt_sensor()
 		col = p.read_collision_sensor()
 		senspack = [p1,p2,res,col]
-		print str(t1)+' | P1: {} | P2: {} | Res: {} | Col: {}'.format(*tuple(senspack))+'\r',
 		for i in range(len(varpack)): varpack[i].append(senspack[i])
 		if len(p1pack)>100: [var.pop(0) for var in varpack]
+		for i in range(len(amps)): amps[i] = np.max(varpack[i]) - np.min(varpack[i])
 		if t1 >= dur:
-			for i in range(len(amps)): amps[i] = np.max(varpack[i]) - np.min(varpack[i])
-			break
-	print 'Stopped at {} | Amplitudes..'.format(t1)
+			if dur:
+				break
+		print str(t1)+' | P1: {} | P2: {} | Res: {} | Col: {}'.format(*tuple(senspack))+'\r',
+	print '\nStopped at {} | Amplitudes..'.format(t1)
 	print 'aP1: {} | aP2: {} | aRes: {} | aCol: {}'.format(*tuple(amps))
 
 def format_float(input_data):

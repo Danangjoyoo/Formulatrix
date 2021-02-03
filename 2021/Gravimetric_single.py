@@ -18,6 +18,15 @@ A_zero = 264.0000
 B = [(B_zero-i*9*w_eng_value) for i in range(0,8)]
 A = [(A_zero-i*9*w_eng_value) for i in range(0,8)]
 
+A1,A2,A3,A4,A5,A6,A7,A8,A9,A10,A11,A12 = [A for A in deck.wellname[0:12]]
+B1,B2,B3,B4,B5,B6,B7,B8,B9,B10,B11,B12 = [B for B in deck.wellname[12:24]]
+C1,C2,C3,C4,C5,C6,C7,C8,C9,C10,C11,C12 = [C for C in deck.wellname[24:36]]
+D1,D2,D3,D4,D5,D6,D7,D8,D9,D10,D11,D12 = [D for D in deck.wellname[36:48]]
+E1,E2,E3,E4,E5,E6,E7,E8,E9,E10,E11,E12 = [E for E in deck.wellname[48:60]]
+F1,F2,F3,F4,F5,F6,F7,F8,F9,F10,F11,F12 = [F for F in deck.wellname[60:72]]
+G1,G2,G3,G4,G5,G6,G7,G8,G9,G10,G11,G12 = [G for G in deck.wellname[72:84]]
+H1,H2,H3,H4,H5,H6,H7,H8,H9,H10,H11,H12 = [H for H in deck.wellname[84:96]]
+
 len_length = 0
 berat_now = 0
 fname = 'Weightscale.txt'
@@ -3141,7 +3150,7 @@ class mainLLT():
 			aspirate(vol, tip)
 			time.sleep(2)
 			dispense(vol, tip)
-		time.sleep(2)
+		time.sleep(3)
 		if log: Plotter.plot_logging(0)
 		mainLLT.terminate()
 		c.move_rel_z(30,100,200)
@@ -3155,11 +3164,11 @@ class mainLLT():
 			t_res, t_vel = [], []
 			for i, t in enumerate(tPack):
 				if i >= 3:
-					if resPack[i] - resPack[i-2] >= 100: t_res.append(t)
-					if velPack[i] - velPack[i-2] >= 100: t_vel.append(t)
+					if resPack[i] - resPack[i-2] >= 10: t_res.append(t)
+					if velPack[i] - velPack[i-2] >= 20: t_vel.append(t)
 			if len(t_res) == 0: t_res = [tPack[len(tPack)-1]]
 			if len(t_vel) == 0: t_vel = [tPack[len(tPack)-1]]
-			response_delay = t_vel[0] - t_res[0]
+			response_delay = round(t_vel[0] - t_res[0],3)
 			# Similarity
 			gaps, devs = [], []
 			for i in range(len(tPack)): gaps.append(resPack[i] - velPack[i])
@@ -3171,14 +3180,23 @@ class mainLLT():
 			return similarity, response_delay
 
 	@staticmethod
-	def pipettingTest(tip, volume,iters=1,live=True):
+	def pipettingTest(tip, volume,iters=1,live=True,replicate=None):
 		if live:
 			thread1 = threading.Thread(target=mainLLT.test_setUp,args=(tip,volume,iters))
 			thread1.start()
 			while not mainLLT.testStat: time.sleep(0.1)
 			Plotter.plot_realtime(p1=True,p2=True,res=True,vel=True)
 		else:
-			return mainLLT.test_setUp(tip, volume, iters, log=True)
+			if replicate:
+				datas = [['Similarity'],['Response Delay']]
+				for i in range(replicate):
+					sim, resp = mainLLT.test_setUp(tip, volume, iters, log=True)
+					datas[0].append(sim); datas[1].append(resp)
+				cols = [str(i) for i in range(len(datas[0]))]
+				df = pd.DataFrame(datas, columns=cols)
+				df.to_csv('Level/P{}_DLLTsimilarity{}x_{}.csv'.format(tip,replicate,int(time.time())),index=False)
+			else:
+				return mainLLT.test_setUp(tip, volume, iters, log=True)
 
 	@staticmethod
 	def preReadingtest(tip,iters,pickpos):

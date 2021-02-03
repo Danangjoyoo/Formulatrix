@@ -2435,8 +2435,8 @@ class mainLLD():
 		c.clear_abort_config(c.AbortID.ValveClose)
 		zero = c.p.get_motor_pos(0)/100.0
 		print 'Checking surfaceFound..'
-		print 'pressureCheck:\t limit: {}\t | postpress: {}'.format(Dry.pressLimit, c.postPress)
-		print 'resCheck:\t limit: {}\t\t | postRes: {}'.format(init_res- c.PLLDConfig.resThres, c.postRes)
+		print 'pressureCheck:\t limit: {}\t | postpress: {}'.format(Dry.pressLimit, c.PostTrigger.press)
+		print 'resCheck:\t limit: {}\t\t | postRes: {}'.format(init_res- c.PLLDConfig.resThres, c.PostTrigger.res)
 		if str.lower(lld) == 'dry':
 			if Dry.press_trig:
 				LLD.surfaceFound = True
@@ -3181,7 +3181,6 @@ class mainLLT():
 			Plotter.plot_realtime(p1=True,p2=True,res=True,vel=True)
 		else:
 			return mainLLT.test_setUp(tip, volume, iters, log=True)
-
 
 llt = mainLLT()
 

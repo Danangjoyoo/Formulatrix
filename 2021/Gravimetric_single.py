@@ -3228,6 +3228,7 @@ class mainLLT():
 				c.move_abs_z(zref,100,1000)
 				satZ, satRes, n, nn = llt.findSaturation(c.p.get_motor_pos(0)/100.0, tip)
 				prPack['resSat'].append(satRes); prPack['zSat'].append(satZ)
+				c.move_abs_z(0,100,500)
 				align(0,pickpos,-10)
 			c.move_abs_z(pick_target+15,200,300)
 			eject()
@@ -3237,6 +3238,7 @@ class mainLLT():
 		cols = [str(i) for i in range(len(prPack['r1']))]
 		df = pd.DataFrame(datas, columns=cols)
 		df.to_csv('level/P{}_preReadingTest{}x_{}.csv'.format(tip,iters,int(time.time())), index=False)
+		lld.findSurface(-10)
 
 llt = mainLLT()
 

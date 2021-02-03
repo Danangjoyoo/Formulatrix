@@ -1997,9 +1997,9 @@ class Plotter():
 			Plotter.filename = filename
 			datas = []
 			# movement
-			init_t = time.time()
+			init_t = time.clock()
 			Plotter.init_t = init_t
-			current_t = time.time() - init_t
+			current_t = time.clock() - init_t
 			before_t = 0
 			init_travel = abs(c.p.get_encoder_position(0))
 			before_travel = 0
@@ -2012,7 +2012,7 @@ class Plotter():
 			if thread:
 				while Plotter.getData:
 					# movement
-					current_t = round(time.time() - init_t,2)					
+					current_t = round(time.clock() - init_t,3)					
 					current_travel = abs(c.p.get_encoder_position(0))-init_travel
 					current_vel = (current_travel-before_travel)/(current_t-before_t)
 					current_acc = (current_vel - before_vel)/(current_t-before_t)
@@ -2031,8 +2031,8 @@ class Plotter():
 					n += 1
 				cols = ['t','travel','vel','acc','col','res','p1','p2']
 				df = pd.DataFrame(datas,columns=cols)
+				for col in cols: Plotter.logs[col] = df[col]
 				df.to_csv(filename,index=False)
-				for i in range(len(cols)): Plotter.logs[cols[i]] = datas[i]
 				lastLen = 0
 				init_t = 0
 				filename = None
@@ -2046,7 +2046,7 @@ class Plotter():
 	#==================== REALTIME PLOTTER ======================
 	plotStat = False
 	func = None
-	init_t = time.time()
+	init_t = time.clock()
 	tick = 0
 	tickPack = []
 	threads = []
@@ -2127,7 +2127,7 @@ class Plotter():
 	def reset_realtime():
 		printy('Variables changed to default')
 		Plotter.plotStat = False
-		Plotter.init_t = time.time()
+		Plotter.init_t = time.clock()
 		Plotter.tick = 0
 		Plotter.tickPack = []
 		Plotter.init_travel = 0
@@ -2204,8 +2204,8 @@ class Plotter():
 		# Initialization =======================
 		container, label, showStat, scale, offset = 0, 1, 2, 3, 4
 		if Plotter.init:
-			Plotter.init_t = time.time()
-			Plotter.current_t = time.time() - Plotter.init_t
+			Plotter.init_t = time.clock()
+			Plotter.current_t = time.clock() - Plotter.init_t
 			Plotter.before_t = 0
 			Plotter.init_travel = abs(c.p.get_encoder_position(0))
 			Plotter.before_travel = 0
@@ -2222,7 +2222,7 @@ class Plotter():
 			for var in Plotter.varPack: Plotter.varPack[var][container].pop(0)
 		# movement
 		Plotter.tick += 1
-		Plotter.current_t = round(time.time() - Plotter.init_t, 2)					
+		Plotter.current_t = round(time.clock() - Plotter.init_t, 3)					
 		Plotter.current_travel = abs(c.p.get_encoder_position(0))-Plotter.init_travel
 		Plotter.current_vel = (Plotter.current_travel-Plotter.before_travel)/(Plotter.current_t-Plotter.before_t)
 		Plotter.current_acc = (Plotter.current_vel - Plotter.before_vel)/(Plotter.current_t-Plotter.before_t)
@@ -2252,7 +2252,7 @@ class Plotter():
 			if Plotter.varPack[var][showStat]:
 				#plt.plot(Plotter.tickPack, Plotter.varPack[var][container], linewidth=1, label=Plotter.varPack[var][label])
 				plt.plot(Plotter.x, Plotter.varPack[var][container], linewidth=1, label=var)
-		elapsedTime = round(time.time() - t1, 4)
+		elapsedTime = round(time.clock() - t1, 4)
 		plt.legend(loc='upper left')
 		plt.xlabel('time (s)')
 		plt.title('Sensor Plotter | {} ms/tick'.format(elapsedTime))
@@ -3156,10 +3156,10 @@ class mainLLT():
 			t_res, t_vel = [], []
 			for i, t in enumerate(tPack):
 				if i >= 3:
-					if respack[i] - respack[i-2] >= 100: t_res.append(t)
-					if velPack[i] - respack[i-2] >= 100: t_vel.append(t)
-			if len(t_res) == 0: t_res = [tPack[-1]]
-			if len(t_vel) == 0: t_vel = [tPack[-1]]
+					if resPack[i] - resPack[i-2] >= 100: t_res.append(t)
+					if velPack[i] - velPack[i-2] >= 100: t_vel.append(t)
+			if len(t_res) == 0: t_res = [tPack[len(tPack)-1]]
+			if len(t_vel) == 0: t_vel = [tPack[len(tPack)-1]]
 			response_delay = t_vel[0] - t_res[0]
 			# Similarity
 			gaps, devs = [], []
@@ -3168,7 +3168,7 @@ class mainLLT():
 			for gap in gaps: devs.append(abs(gap - avgGap))
 			avgDev = np.average(devs)
 			similarity = round((avgGap-avgDev)/avgGap,4)
-			printb('Similarity: {} | Response Delay: {} ms'.format(similarity, response_delay))
+			printb('Similarity: {} | Response Delay: {} s'.format(similarity, response_delay))
 			return similarity, response_delay
 
 

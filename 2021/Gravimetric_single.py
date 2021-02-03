@@ -2306,7 +2306,7 @@ class mainLLD():
 			self.r4_res = 0
 			self.r5_res = 0
 			self.r6_res = 0
-			self.expectedSatZ = {20: -110, 200: -100, 1000: -70}
+			self.expectedSatZ = 15 # 15 mm from end of tip
 			self.satRes = 0
 			self.satZ = 0
 			self.satZlimit = 0
@@ -2435,8 +2435,8 @@ class mainLLD():
 		c.clear_abort_config(c.AbortID.ValveClose)
 		zero = c.p.get_motor_pos(0)/100.0
 		print 'Checking surfaceFound..'
-		print 'pressureCheck:\t limit: {}\t | postpress: {}'.format(Dry.pressLimit, c.PostTrigger.press)
-		print 'resCheck:\t limit: {}\t\t | postRes: {}'.format(init_res- c.PLLDConfig.resThres, c.PostTrigger.res)
+		print 'pressureCheck:\t limit: {}\t | postpress: {}'.format(Dry.pressLimit, c.postPress)
+		print 'resCheck:\t limit: {}\t\t | postRes: {}'.format(init_res- c.PLLDConfig.resThres, c.postRes)
 		if str.lower(lld) == 'dry':
 			if Dry.press_trig:
 				LLD.surfaceFound = True
@@ -2485,8 +2485,8 @@ class mainLLD():
 
 			# z picktip
 			pick_targets 	= {20	:-131, 	200		:-121, 	1000	:-117}
-			evades 			= {20	:3,		200		:3,		1000	:0}	
 			targets 		= {20 	:-90, 	200 	:-80, 	1000	:-30}
+			evades 			= {20	:3,		200		:3,		1000	:0}	
 			#targets 		= {20 	:-120, 	200 	:-110, 	1000	:-70}
 			safes 			= {20	:-55,	200		:-35,	1000	:0}
 			# using plateReader
@@ -2561,8 +2561,7 @@ class mainLLD():
 					pickpos 		= next_pickpos
 					next_pickpos 	= picktipstat[1]
 					ejectpos		= picktipstat[2]
-					if picktipstat[0]:
-						next_pickpos
+					if picktipstat[0]:						
 						p1_init = c.p.read_pressure_sensor(0)
 						res_init = c.p.read_dllt_sensor()
 						printg('Finding Zero Surface...')
@@ -2614,7 +2613,7 @@ class mainLLD():
 							printg('Level 5..',Dry.r5_res,_)
 
 							#R6 = -110
-							Dry.r6_res,_ = mainLLT.preReading(Dry.expectedSatZ[tip]-(c.p.get_motor_pos(0)/100.0))
+							Dry.r6_res,_ = mainLLT.preReading(-Dry.expectedSatZ)
 							printg('Level 6..',Dry.r6_res,_)
 
 							#Saturated Res & Z
@@ -2658,7 +2657,7 @@ class mainLLD():
 							printg('Level 5..',Wet.r5_res,_)
 
 							#R6 = -110
-							Wet.r6_res,_ = mainLLT.preReading(Wet.expectedSatZ[tip]-(c.p.get_motor_pos(0)/100.0))
+							Wet.r6_res,_ = mainLLT.preReading(-Wet.expectedSatZ)
 							printg('Level 6..',Wet.r6_res,_)
 
 							#Saturated Res & Z
@@ -2708,7 +2707,7 @@ class mainLLD():
 								Dry.r4_res,
 								Dry.r5_res,
 								Dry.r6_res,
-								Dry.expectedSatZ[tip],
+								zeros-Dry.expectedSatZ,
 								Dry.satRes,
 								Dry.satZ,
 								zeros-Dry.satZ,
@@ -2758,7 +2757,7 @@ class mainLLD():
 								Wet.r4_res,
 								Wet.r5_res,
 								Wet.r6_res,
-								Wet.expectedSatZ[tip],
+								zeros-Wet.expectedSatZ,
 								Wet.satRes,
 								Wet.satZ,
 								zeros-Wet.satZ,
@@ -3171,7 +3170,6 @@ class mainLLT():
 			printb('Similarity: {} | Response Delay: {} s'.format(similarity, response_delay))
 			return similarity, response_delay
 
-
 	@staticmethod
 	def pipettingTest(tip, volume,iters=1,live=True):
 		if live:
@@ -3181,6 +3179,64 @@ class mainLLT():
 			Plotter.plot_realtime(p1=True,p2=True,res=True,vel=True)
 		else:
 			return mainLLT.test_setUp(tip, volume, iters, log=True)
+
+	@staticmethod
+	def preReadingtest(tip,iters,pickpos):
+		pick_targets 	= {20	:-130, 	200		:-121, 	1000	:-117}
+		targets 		= {20 	:-115, 	200 	:-105, 	1000	:-60}
+		deck.setZeroDeckMode(tip)
+		next_pickpos = pickpos
+		pick_target = pick_targets[tip]
+		target = targets[tip]
+		source = 'D7'
+		datas = []
+		prPack = {
+			'r1':[], 'z1':[],
+			'r2':[], 'z2':[],
+			'r3':[], 'z3':[],
+			'r4':[], 'z4':[],
+			'r5':[], 'z5':[],
+			'resSat':[], 'zSat':[]
+			}
+		for x in range(iters):
+			if tip == 1000:
+				picktipstat = manualPicktip(next_pickpos, pick_target)
+			else:
+				picktipstat = picktip(next_pickpos,pick_target,0)
+			pickpos 		= next_pickpos
+			next_pickpos 	= picktipstat[1]
+			ejectpos		= picktipstat[2]
+			if picktipstat[0]:
+				align(1,source,target+25)
+				zref = lld.findSurface(target,lowSpeed=True)
+				time.sleep(1)
+				r1, z1 = llt.preReading(0)
+				prPack['r1'].append(r1); prPack['z1'].append(z1)
+				time.sleep(c.PrereadingConfig.readDelay)
+				r2, z2 = llt.preReading(-1)
+				prPack['r2'].append(r2); prPack['z2'].append(z2)
+				time.sleep(c.PrereadingConfig.readDelay)
+				r3, z3 = llt.preReading(-1)
+				prPack['r3'].append(r3); prPack['z3'].append(z3)
+				time.sleep(c.PrereadingConfig.readDelay)
+				r4, z4 = llt.preReading(-1)
+				prPack['r4'].append(r4); prPack['z4'].append(z4)
+				time.sleep(c.PrereadingConfig.readDelay)
+				r5, z5 = llt.preReading(-Wet.expectedSatZ)
+				prPack['r5'].append(r5); prPack['z5'].append(z5)
+				time.sleep(c.PrereadingConfig.readDelay)
+				c.move_abs_z(zref,100,1000)
+				satZ, satRes, n, nn = llt.findSaturation(c.p.get_motor_pos(0)/100.0, tip)
+				prPack['resSat'].append(satRes); prPack['zSat'].append(satZ)
+				align(0,pickpos,-10)
+			c.move_abs_z(pick_target+15,200,300)
+			eject()
+		for key in sorted(prPack.keys(), key=lambda x:x.lower()):
+			prPack[key].insert(0,key)
+			datas.append(prPack[key])
+		cols = [str(i) for i in range(len(prPack['r1']))]
+		df = pd.DataFrame(datas, columns=cols)
+		df.to_csv('level/P{}_preReadingTest{}x_{}.csv'.format(tip,iters,int(time.time())), index=False)
 
 llt = mainLLT()
 

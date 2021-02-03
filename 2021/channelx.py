@@ -2024,28 +2024,31 @@ def check_triggered_input(id):
 def get_triggered_input(id):
 	return p.get_triggered_inputs(id)
 
-def sensorRate(dur=0):
+def sensorRate(dur=0,log=False):
 	print 'Press SPACE to stop..'
 	t0 = time.time()
 	p1pack, p2pack, respack, colpack = [],[],[],[];	varpack = [p1pack, p2pack, respack, colpack]
 	p1_amp, p2_amp, res_amp, col_amp = 0,0,0,0;	amps = [p1_amp, p2_amp, res_amp, col_amp]
+	if log: start_logger(0,30)
 	while True:
 		if kb.is_pressed('SPACE'): break
 		t1 = round(time.time()-t0,2)
 		p1 = round(p.read_pressure_sensor(0),3)
 		p2 = round(p.read_pressure_sensor(1),3)
-		res = p.read_dllt_sensor()
-		col = p.read_collision_sensor()
+		res = round(p.read_dllt_sensor(),3)
+		col = round(p.read_collision_sensor(),3)
 		senspack = [p1,p2,res,col]
 		for i in range(len(varpack)): varpack[i].append(senspack[i])
-		if len(p1pack)>100: [var.pop(0) for var in varpack]
 		for i in range(len(amps)): amps[i] = np.max(varpack[i]) - np.min(varpack[i])
 		if t1 >= dur:
 			if dur:
 				break
 		print str(t1)+' | P1: {} | P2: {} | Res: {} | Col: {}'.format(*tuple(senspack))+'\r',
-	print '\nStopped at {} | Amplitudes..'.format(t1)
+	if log: stop_logger()
+	print '\nStopped at {}\nAmplitudes..'.format(t1)
 	print 'aP1: {} | aP2: {} | aRes: {} | aCol: {}'.format(*tuple(amps))
+	print 'Average..'
+	print 'avgP1: {} | avgP2: {} | avgRes: {} | avgCol: {}'.format(*tuple([np.average(var) for var in varpack]))
 
 def format_float(input_data):
 	return float("{0:.2f}".format(input_data))

@@ -3344,7 +3344,6 @@ class PvR(): # Pressure vs Resistance First Triggered
 
 
 
-
 # ALWAYS RE-SETUP EVERY TIME CHANNEL IS CHANGED
 def hi_mode(chipNumber):
 	pr.pregv.set_drain_enable(0,1)

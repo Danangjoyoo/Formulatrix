@@ -327,10 +327,8 @@ def picktip(pos='None',target=P200_picktip_z,safe=-10,userinput=0,nextPosOnly=Fa
 				n+=1
 				lastpos = pos
 				print "POS! :", pos
-				try:
-					nextpos = deck.wellname[deck.wellname.index(pos)+1]
-				except:
-					nextpos = deck.wellname[0]
+				try: nextpos = deck.wellname[deck.wellname.index(pos)+1]
+				except: nextpos = deck.wellname[0]
 				if n>maxtry: break
 				lastpos = pos
 		else:
@@ -3040,12 +3038,12 @@ class mainLLT():
 					mainLLT.Res.start()
 			elif str.lower(operation) == 'dsp':
 				if not mainLLT.r2dsp or not mainLLT.r2asp: mainLLT.r2diff = mainLLT.r2dsp - mainLLT.r2asp
-				if mainLLT.r2 > mainLLT.r1:
+				if mainLLT.r2dsp > mainLLT.r1:
 					printg('**Geometric LLT Mode**')
 					mainLLT.threshold = 0.0 # to avoid different resistance preread mode n operation
 					mainLLT.Geo.init(operation)
 					mainLLT.Geo.start()
-				elif c.PrereadingConfig.dlltMinDspThres < abs(mainLLT.r2 - mainLLT.r1) and (c.PrereadingConfig.dlltMinThres<mainLLT.r2diff<c.PrereadingConfig.dlltMaxThres):
+				elif c.PrereadingConfig.dlltMinDspThres < abs(mainLLT.r2dsp - mainLLT.r1) and (c.PrereadingConfig.dlltMinThres<mainLLT.r2diff<c.PrereadingConfig.dlltMaxThres):
 					printg('**Resistance LLT Mode**')
 					mainLLT.Res.init(operation)
 					mainLLT.Res.start()

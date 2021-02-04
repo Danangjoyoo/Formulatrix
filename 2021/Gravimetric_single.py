@@ -3129,46 +3129,62 @@ class mainLLT():
 		print 'r1: {} | r2: {} | Thres: {}'.format(mainLLT.r1, r2, mainLLT.threshold)
 
 	@staticmethod
+	def checkSimilarity():
+		# Response Delay
+		tPack = Plotter.logs['t']
+		resPack = Plotter.logs['res']
+		velPack = Plotter.logs['vel']
+		t_res, t_vel = [], []
+		for i, t in enumerate(tPack):
+			if i >= 3:
+				if abs(resPack[i] - resPack[i-3]) >= 15: t_res.append(t)
+				if abs(velPack[i] - velPack[i-3]) >= 25: t_vel.append(t)
+		if len(t_res) == 0: t_res = [tPack[len(tPack)-1]]
+		if len(t_vel) == 0: t_vel = [tPack[len(tPack)-1]]
+		response_delay = round(t_vel[0] - t_res[0],3)
+		# Similarity
+		gaps, devs = [], []
+		for i in range(len(tPack)): gaps.append(resPack[i] - velPack[i])
+		avgGap = np.average(gaps)
+		for gap in gaps: devs.append(abs(gap - avgGap))
+		avgDev = np.average(devs)
+		similarity = round((avgGap-avgDev)/avgGap,4)
+		printb('Similarity: {} | Response Delay: {} s'.format(similarity, response_delay))
+		return similarity, response_delay
+
+	@staticmethod
 	def test_setUp(tip, volume,iters=1, log=False):
 		printy("LLT Pipetting Test Started..")
 		targets = {20: -130, 200: -120, 1000: -40}
 		vols = vol_calibrate([volume], tip); vol = vols[0]
 		mainLLT.run()
 		mainLLT.testStat = True
-		if log: Plotter.plot_logging(1,addName='LLT_p'+str(tip))
+		datas = []
+		if log: 
+			lltplotter = Plotter()
+			lltplotter.plot_logging(1,addName='LLT_p'+str(tip))
 		for i in range(iters):
-			time.sleep(2)
-			aspirate(vol, tip)
-			time.sleep(2)
-			dispense(vol, tip)
-		time.sleep(3)
-		if log: Plotter.plot_logging(0)
+			if log: Plotter.plot_logging(1)
+			time.sleep(1)
+			aspirate(vol, tip) # CORE TEST-----------------------
+			time.sleep(1)
+			if log: 
+				Plotter.plot_logging(0)
+				datas.append([llt.checkSimilarity()])
+				time.sleep(0.1)
+				Plotter.plot_logging(1)
+			time.sleep(1)
+			dispense(vol, tip) # CORE TEST-----------------------
+			time.sleep(1)
+			if log:
+				Plotter.plot_logging(0)
+				datas[len(datas)-1].append(llt.checkSimilarity())
+		time.sleep(2)
+		if log: lltplotter.plot_logging(0)
 		mainLLT.terminate()
 		c.move_rel_z(30,100,200)
 		mainLLT.testStat = False
 		printy("LLT Pipetting Test Finished..")
-		if log:
-			# Response Delay
-			tPack = Plotter.logs['t']
-			resPack = Plotter.logs['res']
-			velPack = Plotter.logs['vel']
-			t_res, t_vel = [], []
-			for i, t in enumerate(tPack):
-				if i >= 3:
-					if resPack[i] - resPack[i-2] >= 10: t_res.append(t)
-					if velPack[i] - velPack[i-2] >= 20: t_vel.append(t)
-			if len(t_res) == 0: t_res = [tPack[len(tPack)-1]]
-			if len(t_vel) == 0: t_vel = [tPack[len(tPack)-1]]
-			response_delay = round(t_vel[0] - t_res[0],3)
-			# Similarity
-			gaps, devs = [], []
-			for i in range(len(tPack)): gaps.append(resPack[i] - velPack[i])
-			avgGap = np.average(gaps)
-			for gap in gaps: devs.append(abs(gap - avgGap))
-			avgDev = np.average(devs)
-			similarity = round((avgGap-avgDev)/avgGap,4)
-			printb('Similarity: {} | Response Delay: {} s'.format(similarity, response_delay))
-			return similarity, response_delay
 
 	@staticmethod
 	def pipettingTest(tip, volume,iters=1,live=True,replicate=None):

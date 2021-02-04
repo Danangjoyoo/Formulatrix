@@ -1649,6 +1649,17 @@ def nimbang_increment_1ml(*inputs1):
 
 
 # ================== PLATE READER =========================
+
+def speedMode(mode='grav'):
+	if mode == 'plate':
+		deck.setTravelMode('plate')
+		setVelAcc_z_mode('plate')
+		print 'Pipetting Speed: Plate (Fast)'
+	elif mode == 'grav' or mode == 'default':
+		deck.setTravelMode('grav')
+		setVelAcc_z_mode('grav')
+		print 'Pipetting Speed: Gravimetric (Slow)'
+
 def autoposAsp(vol,row='E'): #Referensi dari tabel Working Dye
 	row = str.upper(row)
 	if vol <= 2: 		#WD 4
@@ -1661,36 +1672,21 @@ def autoposAsp(vol,row='E'): #Referensi dari tabel Working Dye
 		pos = row+'2'
 	return pos
 
-def speedMode(mode='grav'):
-	if mode == 'plate':
-		deck.setTravelMode('plate')
-		setVelAcc_z_mode('plate')
-		print 'Pipetting Speed: Plate (Fast)'
-	elif mode == 'grav' or mode == 'default':
-		deck.setTravelMode('grav')
-		setVelAcc_z_mode('grav')
-		print 'Pipetting Speed: Gravimetric (Slow)'
-
 def plate_maps(realPos=False):
 	maps = []
-	for idx_rows,rows in [i for i in enumerate(string.ascii_uppercase) if i[0] <= 7]:
+	for idx_rows,rows in [char for char in string.ascii_uppercase[:8]]:
 		maps.append([])
 		for cols in range(12):
-			if realPos:
-				maps[idx_rows].append(rows+str(cols+1))
-			else:
-				maps[idx_rows].append(' ')
+			if realPos: maps[idx_rows].append(rows+str(cols+1))
+			else: maps[idx_rows].append(' ')
 	return maps
 
 def plate_Marking(maps, pos, val,showMap=False):
 	for i in enumerate(plate_maps(realPos=True)):
 		for ii in enumerate(i[1]):
-			if pos == ii[1]:
-				#print 'marked at ',pos, ii[0], len(i[1])
-				maps[i[0]][ii[0]] = val
+			if pos == ii[1]: maps[i[0]][ii[0]] = val
 	if showMap:
-		for i in maps:
-			print i
+		for i in maps: print i
 	return maps
 
 def plate_showMap(rawMaps):
@@ -1895,11 +1891,9 @@ def plate_copy(pickpos='A1',tip=200,protocolname='MAP0.csv'):
     targetpick = pick_targets[tip]
     protocol = read_protocol(protocolname)
     volume = vol_calibrate(protocol[0],tip)
-
     print volume
-    target =protocol[1]
+    target = protocol[1]
     source = protocol[2]
-    
     next_pickpos = pickpos
     for x,i in enumerate(source):
         #align(0,pickpos)
@@ -1909,8 +1903,8 @@ def plate_copy(pickpos='A1',tip=200,protocolname='MAP0.csv'):
         ejectpos = picktipstat[2]
         print pickpos, next_pickpos
         if picktipstat[0]:
-           # align(1,source[x],-100,-40,1)
-            #PLLD()()
+           	#align(1,source[x],-100,-40,1)
+            #PLLD()
             align_plld(1,source[x],safe_h_asp,lld_asp,-40,1)
             aspirate(volume[x],tip)
             c.dpc_on()
@@ -1919,7 +1913,6 @@ def plate_copy(pickpos='A1',tip=200,protocolname='MAP0.csv'):
             dispense(volume[x],tip)
             retract_press()
             align(0,ejectpos,targetpick+9,targetpick+65)
-
             c.enable_z()
             eject()
             time.sleep(1)

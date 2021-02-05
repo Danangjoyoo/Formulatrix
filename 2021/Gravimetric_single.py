@@ -2041,7 +2041,6 @@ class Plotter():
 				thread1.start()
 		else:
 			Plotter.getData = False
-			time.sleep(1)
 			print 'Sensor plot stopped'
 
 	#==================== REALTIME PLOTTER ======================
@@ -3057,16 +3056,15 @@ class mainLLT():
 
 	@staticmethod
 	def terminate():
-		if c.p.is_running_dllt() or mainLLT.lltMode:
+		if mainLLT.lltMode:
 			if mainLLT.lltMode == 'geo':
 				mainLLT.Geo.stop()
 			elif mainLLT.lltMode == 'res':
 				mainLLT.Res.stop()
-			else:
-				c.p.stop_dllt()
 			print 'LLT Terminated'
 		else:
 			print 'LLT Unterminated'
+
 	@staticmethod
 	def check():
 		printg('DLLT limit:');print c.p.get_dllt_limit()
@@ -3157,14 +3155,14 @@ class mainLLT():
 	@staticmethod
 	def test_setUp(tip, volume,iters=1, log=False):
 		printy("LLT Pipetting Test Started..")
-		targets = {20: -130, 200: -120, 1000: -50}
+		targets = {20: -130, 200: -120, 1000: -40}
 		vols = vol_calibrate([volume], tip); vol = vols[0]
 		mainLLT.run()
 		mainLLT.testStat = True
-		sims, dels = [], []
-		#if log: 
-		#	lltplotter = Plotter()
-		#	lltplotter.plot_logging(1,addName='LLT_p'+str(tip))
+		datas = []
+		if log: 
+			lltplotter = Plotter()
+			lltplotter.plot_logging(1,addName='LLT_p'+str(tip))
 		for i in range(iters):
 			if log: Plotter.plot_logging(1)
 			time.sleep(1)
@@ -3172,8 +3170,7 @@ class mainLLT():
 			time.sleep(1)
 			if log: 
 				Plotter.plot_logging(0)
-				s,d = llt.checkSimilarity()
-				sims.append(s); dels.append(d)
+				datas.append([llt.checkSimilarity()])
 				time.sleep(0.1)
 				Plotter.plot_logging(1)
 			time.sleep(1)
@@ -3181,15 +3178,13 @@ class mainLLT():
 			time.sleep(1)
 			if log:
 				Plotter.plot_logging(0)
-				s,d = llt.checkSimilarity()
-				sims.append(s); dels.append(d)
+				datas[len(datas)-1].append(llt.checkSimilarity())
 		time.sleep(2)
-		#if log: lltplotter.plot_logging(0)
+		if log: lltplotter.plot_logging(0)
 		mainLLT.terminate()
 		c.move_rel_z(30,100,200)
 		mainLLT.testStat = False
 		printy("LLT Pipetting Test Finished..")
-		if log:	return sims, dels 
 
 	@staticmethod
 	def pipettingTest(tip, volume,iters=1,live=True,replicate=None):
@@ -3200,14 +3195,11 @@ class mainLLT():
 			Plotter.plot_realtime(p1=True,p2=True,res=True,vel=True)
 		else:
 			if replicate:
-				datas = [['operation'],['Similarity'],['Response Delay']]
+				datas = [['Similarity'],['Response Delay']]
 				for i in range(replicate):
 					sim, resp = mainLLT.test_setUp(tip, volume, iters, log=True)
-					for i in range(len(sim)):
-						datas[1].append(sim[i])
-						datas[2].append(resp[i])
-					[datas[0].append('asp') if not i%2 else datas[0].append('dsp') for i in range(len(sim))]
-				cols = [str(i) for i in range(len(datas[1]))]
+					datas[0].append(sim); datas[1].append(resp)
+				cols = [str(i) for i in range(len(datas[0]))]
 				df = pd.DataFrame(datas, columns=cols)
 				df.to_csv('Level/P{}_DLLTsimilarity{}x_{}.csv'.format(tip,replicate,int(time.time())),index=False)
 			else:

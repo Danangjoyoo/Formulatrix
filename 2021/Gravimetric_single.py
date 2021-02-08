@@ -2013,7 +2013,7 @@ class Plotter():
 			if thread:
 				while Plotter.getData:
 					# movement
-					current_t = round(time.clock() - init_t,3)					
+					current_t = round(time.clock() - init_t,5)					
 					current_travel = abs(c.p.get_encoder_position(0))-init_travel
 					current_vel = (current_travel-before_travel)/(current_t-before_t)
 					current_acc = (current_vel - before_vel)/(current_t-before_t)
@@ -2350,17 +2350,25 @@ class mainLLD():
 		p1_init = c.p.read_pressure_sensor(0)
 		p2_init = c.p.read_pressure_sensor(1)
 		r_init = c.p.read_dllt_sensor()
+		x,y = deck.current_pos()
 		z = c.p.get_motor_pos(0)/100.0
 		printr('Inital Value\t: p1 = {}\tp2 = {}\tr = {}'.format(p1_init,p2_init,r_init))
 		printy('Use ctrl+up/down to control Z pos (+shift to speed up)\npress space to terminate..')
 		while True:
 			if kb.is_pressed('space'): break
-			if kb.is_pressed('down+ctrl'): z -= 3 if kb.is_pressed('shift') else 1
-			elif kb.is_pressed('up+ctrl'): z += 3 if kb.is_pressed('shift') else 1
+			if kb.is_pressed('down+alt'): z -= 3 if kb.is_pressed('ctrl') else 1
+			elif kb.is_pressed('up+alt'): z += 3 if kb.is_pressed('ctrl') else 1
+			if kb.is_pressed('capslock+right'): x -= 3 if kb.is_pressed('ctrl') else 1
+			elif kb.is_pressed('capslock+left'): x += 3 if kb.is_pressed('ctrl') else 1
+			if kb.is_pressed('capslock+up'): y -= 3 if kb.is_pressed('ctrl') else 1
+			elif kb.is_pressed('capslock+down'): y += 3 if kb.is_pressed('ctrl') else 1
 			p1 = c.p.read_pressure_sensor(0)
 			p2 = c.p.read_pressure_sensor(1)
 			r = c.p.read_dllt_sensor()
 			c.p.move_motor_abs(0,z*100,100*100,100*100)
+			eng_value = 4.54545454
+			deck.d.move_motor_abs(0,x*eng_value,100,100,20)
+			deck.d.move_motor_abs(1,y*eng_value,100,100,20)
 			if c.p.read_collision_sensor() < 1000:
 				c.clear_motor_fault()
 				c.clear_estop()
@@ -3132,7 +3140,7 @@ class mainLLT():
 		print 'r1: {} | r2: {} | Thres: {}'.format(mainLLT.r1, r2, mainLLT.threshold)
 
 	@staticmethod
-	def checkSimilarity():
+	def checkSimilarity(opr):
 		# Response Delay
 		tPack = Plotter.logs['t']
 		resPack = Plotter.logs['res']
@@ -3140,8 +3148,12 @@ class mainLLT():
 		t_res, t_vel = [], []
 		for i, t in enumerate(tPack):
 			if i >= 3:
-				if abs(resPack[i] - resPack[i-3]) >= 15: t_res.append(t)
-				if abs(velPack[i] - velPack[i-3]) >= 25: t_vel.append(t)
+				if opr == 'asp':
+					if (resPack[i] - resPack[i-3]) >= 15: t_res.append(t)
+					if (velPack[i] - velPack[i-3]) >= 25: t_vel.append(t)
+				else:
+					if (resPack[i] - resPack[i-3]) <= -15: t_res.append(t)
+					if (velPack[i] - velPack[i-3]) <= -25: t_vel.append(t)
 		if len(t_res) == 0: t_res = [tPack[len(tPack)-1]]
 		if len(t_vel) == 0: t_vel = [tPack[len(tPack)-1]]
 		response_delay = round(t_vel[0] - t_res[0],3)
@@ -3171,7 +3183,7 @@ class mainLLT():
 			time.sleep(1)
 			if log: 
 				Plotter.plot_logging(0)
-				s,d = llt.checkSimilarity()
+				s,d = llt.checkSimilarity('asp')
 				sims.append(s); dels.append(d)
 				time.sleep(0.1)
 				Plotter.plot_logging(1,save=False)
@@ -3180,7 +3192,7 @@ class mainLLT():
 			time.sleep(1)
 			if log:
 				Plotter.plot_logging(0)
-				s,d = llt.checkSimilarity()
+				s,d = llt.checkSimilarity('dsp')
 				sims.append(s); dels.append(d)
 		time.sleep(2)
 		mainLLT.terminate()

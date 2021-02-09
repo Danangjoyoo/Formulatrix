@@ -1998,9 +1998,9 @@ class Plotter():
 			datas = []
 			Plotter.logs = {}
 			# movement
-			init_t = time.clock()
+			init_t = time.time()
 			Plotter.init_t = init_t
-			current_t = time.clock() - init_t
+			current_t = time.time() - init_t
 			before_t = 0
 			init_travel = abs(c.p.get_encoder_position(0))
 			before_travel = 0
@@ -2013,7 +2013,7 @@ class Plotter():
 			if thread:
 				while Plotter.getData:
 					# movement
-					current_t = round(time.clock() - init_t,5)					
+					current_t = round(time.time() - init_t,5)					
 					current_travel = abs(c.p.get_encoder_position(0))-init_travel
 					current_vel = (current_travel-before_travel)/(current_t-before_t)
 					current_acc = (current_vel - before_vel)/(current_t-before_t)
@@ -2048,14 +2048,14 @@ class Plotter():
 	#==================== REALTIME PLOTTER ======================
 	plotStat = False
 	func = None
-	init_t = time.clock()
+	init_t = time.time()
 	tick = 0
 	tickPack = []
 	threads = []
 	init_travel = 0
 	avgTime = []
 	x = []
-	limit = 25
+	limit = 10
 	init = True
 	current_t = 0
 	before_t = 0
@@ -2129,7 +2129,7 @@ class Plotter():
 	def reset_realtime():
 		printy('Variables changed to default')
 		Plotter.plotStat = False
-		Plotter.init_t = time.clock()
+		Plotter.init_t = time.time()
 		Plotter.tick = 0
 		Plotter.tickPack = []
 		Plotter.init_travel = 0
@@ -2206,8 +2206,8 @@ class Plotter():
 		# Initialization =======================
 		container, label, showStat, scale, offset = 0, 1, 2, 3, 4
 		if Plotter.init:
-			Plotter.init_t = time.clock()
-			Plotter.current_t = time.clock() - Plotter.init_t
+			Plotter.init_t = time.time()
+			Plotter.current_t = time.time() - Plotter.init_t
 			Plotter.before_t = 0
 			Plotter.init_travel = abs(c.p.get_encoder_position(0))
 			Plotter.before_travel = 0
@@ -2219,12 +2219,11 @@ class Plotter():
 			time.sleep(0.1)
 		# set limit
 		if len(Plotter.x) >= Plotter.limit:
-			Plotter.tickPack.pop(0)
 			Plotter.x.pop(0)
 			for var in Plotter.varPack: Plotter.varPack[var][container].pop(0)
 		# movement
 		Plotter.tick += 1
-		Plotter.current_t = round(time.clock() - Plotter.init_t, 3)					
+		Plotter.current_t = round(time.time() - Plotter.init_t, 3)					
 		Plotter.current_travel = abs(c.p.get_encoder_position(0))-Plotter.init_travel
 		Plotter.current_vel = (Plotter.current_travel-Plotter.before_travel)/(Plotter.current_t-Plotter.before_t)
 		Plotter.current_acc = (Plotter.current_vel - Plotter.before_vel)/(Plotter.current_t-Plotter.before_t)
@@ -2239,7 +2238,6 @@ class Plotter():
 		p2 = c.p.read_pressure_sensor(1)
 		# ADD DATA
 		if Plotter.plotStat:
-			Plotter.tickPack.append(Plotter.tick)
 			Plotter.x.append(Plotter.current_t)
 			Plotter.varPack['travel'][container].append(Plotter.current_travel*Plotter.varPack['travel'][scale]+Plotter.varPack['travel'][offset])
 			Plotter.varPack['vel'	][container].append(Plotter.current_vel*Plotter.varPack['vel'][scale]+Plotter.varPack['vel'][offset])
@@ -2254,11 +2252,11 @@ class Plotter():
 			if Plotter.varPack[var][showStat]:
 				#plt.plot(Plotter.tickPack, Plotter.varPack[var][container], linewidth=1, label=Plotter.varPack[var][label])
 				plt.plot(Plotter.x, Plotter.varPack[var][container], linewidth=1, label=var)
-		elapsedTime = round(time.clock() - t1, 4)
+		elapsedTime = round((time.time() - t1)*1000, 1)
 		plt.legend(loc='upper left')
 		plt.xlabel('time (s)')
 		plt.title('Sensor Plotter | {} ms/tick'.format(elapsedTime))
-		plt.text(100,100,str(Plotter.limit))
+		#plt.text(100,100,str(Plotter.limit))
         # end of plotting =======================
 plotter = Plotter()
 
@@ -2383,9 +2381,11 @@ class mainLLD():
 		print('FindSurface Started.. lld: {} | HighAccuracy: {} | depth: {}'.format(lld, lowSpeed, depth))
 		c.clear_estop()
 		c.clear_motor_fault()
-		anchorFlow = c.PLLDConfig.flow
+		anchorF = c.PLLDConfig.flow
+		anchorT = c.PLLDConfig.pressThres
 		if lowSpeed:
 			c.PLLDConfig.flow = LLD.lowSpeed_flow
+			c.PLLDConfig.pressThres = 4.5
 			stem_vel = 2
 			stem_acc = 5
 		else:
@@ -2465,7 +2465,9 @@ class mainLLD():
 				printb('Surface found at Wet')
 			else:
 				printy("Resistance Limit isn't reached at Wet")
-		if lowSpeed: c.PLLDConfig.flow = anchorFlow
+		if lowSpeed: 
+			c.PLLDConfig.flow = anchorF
+			c.PLLDConfig.pressThres = anchorT
 		c.PostTrigger.terminateAll()
 		return zero
 
@@ -2494,14 +2496,15 @@ class mainLLD():
 				pickpos = kw[2]
 
 			# z picktip
-			pick_targets 	= {20	:-131, 	200		:-121, 	1000	:-117}
-			targets 		= {20 	:-90, 	200 	:-80, 	1000	:-30}
+			pick_targets 	= {20	:-130, 	200		:-121, 	1000	:-117}
+			targets 		= {20 	:-90, 	200 	:-80, 	1000	:-70}
 			evades 			= {20	:3,		200		:3,		1000	:0}	
 			#targets 		= {20 	:-120, 	200 	:-110, 	1000	:-70}
 			safes 			= {20	:-55,	200		:-35,	1000	:0}
 			# using plateReader
 
 			deck.setZeroDeckMode(tip)
+			speedMode('plate')
 			next_pickpos = pickpos
 			pick_target = pick_targets[tip]
 			evade = evades[tip]
@@ -2784,6 +2787,7 @@ class mainLLD():
 						eject()
 						eject()
 				align(0, next_pickpos, pick_target+50)
+			speedMode('default')
 
 		@staticmethod #Depthing with different flows
 		def dryDepthing(tip=20,iters=3,depthing=0): # PLLD test in the number of iterations
@@ -2856,7 +2860,7 @@ class mainLLD():
 			printg('DONE!')
 
 		@staticmethod #base method for referencing different flows by blowing the stem underwater
-		def flowReferencing(tip, flow):
+		def flowReferencing(tip, flow, single=False,**kargs):
 			print 'Flow : {}'.format(flow)
 			targets = {20:-125, 200:-115, 1000:-65}
 			target = targets[tip]
@@ -2880,19 +2884,79 @@ class mainLLD():
 			wawik(1,'D7',target-20)
 
 		@staticmethod #base method for surface referencing different res by WLLD
-		def resReferencing(tip=20, freq=c.PLLDConfig.freq):
-			print 'Freq: {}'.format(freq)
-			targets = {20:-125, 200:-115, 1000:-65}
-			target = targets[tip]
-			mainLLD.test.runStat = True
-			source = 'D7'
-			align(1,source,target+60)
-			anchor = c.WLLDConfig.freq
-			c.WLLDConfig.freq = freq
-			zero = lld.findSurface(target,lld='wet')
-			printr('Zero: {} | Freq: {}'.format(zero, freq))
-			c.WLLDConfig.freq = anchor
-			return zero, freq
+		def resReferencing(tip=20, freq=c.PLLDConfig.freq, single=False, **kargs):
+			if single:
+				print 'Freq: {}'.format(freq)
+				targets = {20:-125, 200:-115, 1000:-65}
+				target = targets[tip]
+				mainLLD.test.runStat = True
+				source = 'D7'
+				align(1,source,target+60)
+				zref = lld.findSurface(target,lowSpeed=True)
+				anchor = c.WLLDConfig.freq
+				c.WLLDConfig.freq = freq
+				zdet = lld.findSurface(target,lld='wet')
+				printr('Zero: {} | Freq: {}'.format(zero, freq))
+				c.WLLDConfig.freq = anchor
+				return zref, zdet
+			else:
+				range1 = kargs['range1'] if 'range1' in kargs else 100
+				range2 = kargs['range2'] if 'range2' in kargs else 200
+				space = kargs['space'] if 'space' in kargs else 100
+				iters = kargs['iters'] if 'iters' in kargs else 1
+				datas = []
+				refs = list(range(range1,range2+space,space))
+				for fr in refs
+					datas.append([fr])
+					for i in range(iters):
+						zref, zdet = lld.test.resReferencing(tip,fr,single=True,iters)
+						datas[len(datas)-1].append(zref-zdet)
+					sdev = np.std(datas[len(datas)-1])
+					avg = np.average(datas[len(datas)-1])
+					datas[len(datas)-1].append(avg)
+					datas[len(datas)-1].append(sdev/avg)
+				cols = ['depth_'+str(i) for i in range(len(refs))]
+				cols.insert(0,'Freq'); cols.append('avg'); cols.append('cv')
+				df = pd.DataFrame(datas,columns=cols)
+				df.to_csv("Level/PLLDResReferencing_{}.csv".format(int(time.time())),index=False)
+
+
+		@staticmethod #method to find false positive of PLLD
+		def pthresReferencing(thresh,single=False,**kargs):
+			if single:
+				speedMode('plate')
+				c.move_abs_z(-95,100,1000)
+				zref = lld.findSurface(-110,lowSpeed=True)
+				c.move_abs_z(0,100,1000)
+				wawik(1,'D7',0)
+				zdet = lld.findSurface(-110,depthing=1)
+				c.move_abs_z(0,100,1000)
+				wawik(1,'D7',0)
+				speedMode('default')
+				return zref, zdet
+			else:
+				range1 = kargs['range1'] if 'range1' in kargs else 1
+				range2 = kargs['range2'] if 'range2' in kargs else 2
+				space = kargs['space'] if 'space' in kargs else 1
+				iters = kargs['iters'] if 'iters' in kargs else 1
+				datas = []
+				refs = np.arange(range1,range2+space,space)
+				for th in refs:
+					datas.append([th])
+					anchorT = c.PLLDConfig.pressThres
+					c.PLLDConfig.pressThres = th
+					for i in range(iters):
+						zref, zdet = lld.test.pthresReferencing(th, single=True)
+						datas[len(datas)-1].append(zref-zdet)
+					c.PLLDConfig.pressThres = anchorT
+					sdev = np.std(datas[len(datas)-1])
+					avg = np.average(datas[len(datas)-1])
+					datas[len(datas)-1].append(avg)
+					datas[len(datas)-1].append(sdev/avg)
+				cols = ['depth_'+str(i) for i in range(len(refs))]
+				cols.insert(0,'thres'); cols.append('avg'); cols.append('cv')
+				df = pd.DataFrame(datas,columns=cols)
+				df.to_csv("Level/PLLDThreshReferencing_{}.csv".format(int(time.time())),index=False)
 
 		@staticmethod
 		def farDepthing(tip,pickpos,iters,flow,thres,dyn): #for p1000 long travel LLD
@@ -3369,6 +3433,7 @@ class PvR(): # Pressure vs Resistance First Triggered
 					return 'Res Sensor', PvR.lastTestObj.trigtime_r
 		else:
 			print 'No PvR have ran'
+
 
 
 

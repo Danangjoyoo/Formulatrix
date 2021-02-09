@@ -2909,7 +2909,7 @@ class mainLLD():
 				for fr in refs:
 					datas.append([fr])
 					for i in range(iters):
-						zref, zdet = lld.test.resReferencing(tip,fr,single=True,iters)
+						zref, zdet = lld.test.resReferencing(tip,fr,True,iters)
 						datas[len(datas)-1].append(zref-zdet)
 					sdev = np.std(datas[len(datas)-1])
 					avg = np.average(datas[len(datas)-1])
@@ -2946,7 +2946,7 @@ class mainLLD():
 					anchorT = c.PLLDConfig.pressThres
 					c.PLLDConfig.pressThres = th
 					for i in range(iters):
-						zref, zdet = lld.test.pthresReferencing(th, single=True)
+						zref, zdet = lld.test.pthresReferencing(th, True)
 						datas[len(datas)-1].append(zref-zdet)
 					c.PLLDConfig.pressThres = anchorT
 					sdev = np.std(datas[len(datas)-1])

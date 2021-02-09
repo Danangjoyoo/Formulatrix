@@ -2906,7 +2906,7 @@ class mainLLD():
 				iters = kargs['iters'] if 'iters' in kargs else 1
 				datas = []
 				refs = list(range(range1,range2+space,space))
-				for fr in refs
+				for fr in refs:
 					datas.append([fr])
 					for i in range(iters):
 						zref, zdet = lld.test.resReferencing(tip,fr,single=True,iters)

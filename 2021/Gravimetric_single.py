@@ -2281,7 +2281,7 @@ class mainLLD():
 		def __init__(self,types):
 			self.types = types
 			self.zero = 0
-			self.LLT_freq = 510
+			self.lld_freq = c.PLLDConfig.freq
 			self.p1 = 0
 			self.p2 = 0
 			self.res = 0 
@@ -2497,7 +2497,7 @@ class mainLLD():
 
 			# z picktip
 			pick_targets 	= {20	:-130, 	200		:-121, 	1000	:-117}
-			targets 		= {20 	:-90, 	200 	:-80, 	1000	:-70}
+			targets 		= {20 	:-120, 	200 	:-110, 	1000	:-60}
 			evades 			= {20	:3,		200		:3,		1000	:0}	
 			#targets 		= {20 	:-120, 	200 	:-110, 	1000	:-70}
 			safes 			= {20	:-55,	200		:-35,	1000	:0}
@@ -2536,7 +2536,7 @@ class mainLLD():
 				'Res Trig'			+','+
 				'NormalZ Trigger'	+','+
 				'HardZ Trigger'		+','+
-				'LLT Res Freq'		+','+
+				'LLD Freq'			+','+
 				'ZeroRes'			+','+
 				'dRes(init-zero)'	+','+
 				'Depth'				+','+
@@ -2705,7 +2705,7 @@ class mainLLD():
 								Dry.res_trig,
 								Dry.NormalZ_trig,
 								Dry.HardZ_trig,
-								Dry.LLT_freq,
+								Dry.lld_freq,
 								Dry.res,
 								res_init - Dry.res,
 								zeros - Dry.zero,
@@ -2755,7 +2755,7 @@ class mainLLD():
 								Wet.res_trig,
 								Wet.NormalZ_trig,
 								Wet.HardZ_trig,
-								Wet.LLT_freq,
+								Wet.lld_freq,
 								Wet.res,
 								res_init - Wet.res,
 								zeros - Wet.zero,
@@ -2779,6 +2779,7 @@ class mainLLD():
 								Wet.t_operation,
 								t_tot
 								)]),filename)
+							printg("Time Remaining: {}m {}s".format(int(t_tot/60*(iters-x)), int(t_tot*(iters-x)) % 60))
 
 						printg('Eject Phase..')
 						# Eject phase
@@ -3017,6 +3018,7 @@ LLD.p2 = 936
 Dry = mainLLD.Operation('DRY')
 Wet = mainLLD.Operation('WET')
 Wet.resThres = c.WLLDConfig.resThres
+Wet.lld_freq = c.WLLDConfig.freq
 Wet.useDynamic = False
 
 class mainLLT():

@@ -1891,9 +1891,9 @@ def setUp_wlld():
 	clear_abort_config(AbortID.HardZ)
 	clear_abort_config(AbortID.ValveClose)
 	# Set Abort PLLD
-	p.set_abort_threshold(InputAbort.CollisionTouch,p.read_collision_sensor()-PLLDConfig.colThres)	
+	p.set_abort_threshold(InputAbort.CollisionTouch,p.read_collision_sensor()-WLLDConfig.colThres)	
 	p.set_abort_threshold(InputAbort.CurrentMotorZ,PLLDConfig.currentThresh)
-	p.set_abort_threshold(InputAbort.LiquidLevelSensor,p.read_dllt_sensor()-PLLDConfig.resThres)
+	p.set_abort_threshold(InputAbort.LiquidLevelSensor,p.read_dllt_sensor()-WLLDConfig.resThres)
 	collision = 1<<InputAbort.CollisionTouch
 	current = 1 <<InputAbort.CurrentMotorZ
 	wlld = 1 << InputAbort.LiquidLevelSensor

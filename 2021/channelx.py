@@ -1764,13 +1764,13 @@ def set_picktip_abort(col=100,curr=0.5):
 	#p.set_abort_config(abort_id,0,1<<sensor_mask,0,0)
 
 class PLLDConfig():
-	flow = 10
+	flow = 40#10
 	flow_delay = 250
 	stem_vel = 15
 	stem_acc = 1000
 	colThres = 100
 	currentThresh = 1.3
-	pressThres = 4.5
+	pressThres = 2.0#4.5
 	resThres = 500
 	freq = 500
 	freq_delay = 250/1000.0
@@ -2241,7 +2241,7 @@ def picktip_secondmove(targetZ,tip=20,init_res=p.read_dllt_sensor()):
 	resValid = PicktipConfig.validResMin <= res <= PicktipConfig.validResMax
 	print"p2: {}, col: {}, res: {}".format(delta_press,col,res)
 	print"p2Valid: {}, colValid: {}, resValid: {}".format(p2Valid,colValid,resValid)
-	if p2Valid and colValid and resValid: return True
+	if p2Valid or colValid or resValid: return True
 	else: return False
 
 p20targetpick= -139

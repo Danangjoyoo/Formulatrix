@@ -3016,6 +3016,7 @@ LLD.res = 3100
 LLD.p2 = 936
 Dry = mainLLD.Operation('DRY')
 Wet = mainLLD.Operation('WET')
+Wet.resThres = c.WLLDConfig.resThres
 Wet.useDynamic = False
 
 class mainLLT():

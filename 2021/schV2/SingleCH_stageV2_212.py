@@ -9,9 +9,6 @@ from pandas import read_csv
 import threading, winsound, os, sys, signal
 import keyboard as kb, string, numpy as np, colorama as cora, random as rd
 import matplotlib.pyplot as plt
-from matplotlib.animation import FuncAnimation
-from pyqtgraph.Qt import QtGui, QtCore
-import pyqtgraph as pg
 
 w_eng_value = 4.5454545454
 B_zero = 702.4545+9*w_eng_value
@@ -1458,465 +1455,6 @@ class Plate():
         elapsedtime = (time.time()-starttime)
         print("Timeit = ", elapsedtime)
 
-"""
-# PLOTTER
-class Plotter():
-    def __init__(self):
-        # Logging
-        self.getData = False
-        self.lastLen = 0
-        self.init_t = 0
-        self.filename = None
-        self.logs = {}
-        # Live Plot
-        self.plotStat = False
-        self.func = None
-        self.init_t = time.perf_counter()
-        self.tick = 0
-        self.tickPack = []
-        self.thread = None
-        self.init_travel = 0
-        self.avgTime = []
-        self.x = []
-        self.limit = 50
-        self.init = True
-        self.current_t = 0
-        self.before_t = 0
-        self.init_travel = 0
-        self.before_travel = 0
-        self.current_vel = 0
-        self.before_vel = 0
-        self.current_acc = 0
-        self.before_acc = 0
-        self.varPack = { 
-            'travel': [[], 'travel' , False, 1, 0],
-            'vel'   : [[], 'vel'    , False, 1, 0],
-            'acc'   : [[], 'acc'    , False, 1, 0],
-            'col'   : [[], 'col'    , False, 1, 0],
-            'res'   : [[], 'res'    , False, 1, 0],
-            'p1'    : [[], 'p1 '    , False, 1, 0],
-            'p2'    : [[], 'p2 '    , False, 1, 0] }
-
-    def logging(self,start=True,thread=False,addName=""):
-        if start:
-            n = 0
-            self.getData = True
-            filename = 'Level/plot_sensor{}_{}.csv'.format(addName,int(time.time()))
-            self.filename = filename
-            datas = []
-            # movement
-            init_t = time.perf_counter()
-            self.init_t = init_t
-            current_t = time.perf_counter() - init_t
-            before_t = 0
-            init_travel = abs(c.p.get_encoder_position(0))
-            before_travel = 0
-            current_vel = 0
-            before_vel = 0
-            current_acc = 0
-            before_acc = 0
-            #other sensor
-            col, res, p1, p2 = 0,0,0,0
-            if thread:
-                while self.getData:
-                    # movement
-                    current_t = round(time.perf_counter() - init_t,3)                  
-                    current_travel = abs(c.p.get_encoder_position(0))-init_travel
-                    current_vel = (current_travel-before_travel)/(current_t-before_t)
-                    current_acc = (current_vel - before_vel)/(current_t-before_t)
-                    before_t = current_t
-                    before_travel = current_travel
-                    before_vel = current_vel
-                    before_acc = current_acc
-                    # other sensor
-                    col = c.sensing.col()
-                    res = c.sensing.res()
-                    p1 = c.sensing.p1()
-                    p2 = c.sensing.p2()
-                    datas.append([])
-                    for val in [current_t, current_travel, current_vel, current_acc, col, res, p1, p2]: datas[n].append(val)
-                    n += 1
-                cols = ['t','travel','vel','acc','col','res','p1','p2']
-                df = pd.DataFrame(datas,columns=cols)
-                for col in cols: self.logs[col] = df[col]
-                df.to_csv(filename,index=False)
-                self.lastLen = 0
-                self.init_t = 0
-                self.filename = None
-            else:
-                thread1 = threading.Thread(target=self.logging,args=(1,1,addName))
-                thread1.start()
-        else:
-            self.getData = False
-            print('Sensor plot stopped')
-
-    #==================== REALTIME PLOTTER =====================
-    def run(self,*args): #function, param1, param2, dll
-        if args:
-            printg('Realtime Plotter Started..')
-            newArgs = list(args)
-            func = newArgs.pop(0)
-            if len(args) > 1:
-                params = tuple(newArgs)
-                self.thread1 = threading.Thread(target=func,args=params)                
-            else:
-                self.thread1 = threading.Thread(target=func)
-            self.thread1.start()
-            time.sleep(0.1)
-            # set sensor yang mau diplot <nama sensor>=True di parameter
-            self.liveplot(p2=True)
-            printg('Realtime Plotter Finished..')
-            self.reset_realtime()
-        else:
-            printr('Please input function!')
-
-    def raiseProcess(self):
-        if self.thread1.isAlive():
-            printy('Raising the background process to the foregound! Please wait..')
-            printy('Check the blocking status at Terminal/Console/CMD!')
-            self.thread1.join()
-            printy(self.func, 'is Raised.. now u can terminate')
-        else:
-            printr('Background is unregistered!')       
-        self.thread1 = None
-
-    @staticmethod
-    def forceKill():
-        printr('FORCE KILL MAIN APP')
-        sys.exit()
-
-    def reset_realtime(self):
-        printy('Variables changed to default')
-        self.plotStat = False
-        self.init_t = time.perf_counter()
-        self.tick = 0
-        self.tickPack = []
-        self.init_travel = 0
-        self.avgTime = []
-        self.x = []
-        self.init = True
-        for var in self.varPack: self.varPack[var][0] = []
-
-    def resetVariables(self):
-        self.varPack = { 
-            'travel': [[], 'travel' , False, 1, 0],
-            'vel'   : [[], 'vel'    , False, 1, 0],
-            'acc'   : [[], 'acc'    , False, 1, 0],
-            'col'   : [[], 'col'    , False, 1, 0],
-            'res'   : [[], 'res'    , False, 1, 0],
-            'p1'    : [[], 'p1 '    , False, 1, 0],
-            'p2'    : [[], 'p2 '    , False, 1, 0] }
-    
-    def setSensor(self,**sens): # untuk set sensor dari terminal dan limit
-        container, label, showStat, scale = 0, 1, 2, 3
-        if 'limit' in sens: self.limit = sens['limit']
-        for sensor in sens:
-            if sensor in self.varPack:
-                self.varPack[sensor][showStat] = sens[sensor]
-                print(sensor+" plot:", sens[sensor])
-
-    def setScale(self,**vars): # untuk scaling chart
-        container, label, showStat, scale = 0, 1, 2, 3
-        if vars:
-            for var in vars:
-                if var in self.varPack:
-                    self.varPack[var][scale] = vars[var]
-                    print(var+"'s scale:", vars[var])
-        else:
-            print('No Scale is Changed')
-
-    def setOffset(self,**vars): # untuk offsetting chart
-        container, label, showStat, offset = 0, 1, 2, 4
-        if vars:
-            for var in vars:
-                if var in self.varPack:
-                    self.varPack[var][offset] = vars[var]
-                    print(var+"'s offset:", vars[var])
-        else:
-            print('No Offset is Changed')
-    
-    def checkVar(self):
-        print("Tick Limit in frame :", self.limit)
-        for var in self.varPack:
-            val = self.varPack[var]
-            print("Var: {}\t| Plot: {}\t| Scale: {}\t| Offset: {}\t".format(val[1],val[2],val[3],val[4]))
-
-    def liveplot(self,**show):
-        if show:
-            self.setSensor(**show)
-            self.plotStat = True
-            ani = FuncAnimation(plt.gcf(), self.autoUpdate, interval=5)
-            plt.show()
-        else:
-            printr("Input sensor that you want to plot! (Ex: p2=True, p1= True)")
-
-    def autoUpdate(self,i):
-        t1 = time.perf_counter()
-        # Initialization =======================
-        container, label, showStat, scale, offset = 0, 1, 2, 3, 4
-        if self.init:
-            self.init_t = time.perf_counter()
-            self.current_t = time.perf_counter() - self.init_t
-            self.before_t = 0
-            self.init_travel = abs(c.p.get_encoder_position(0))
-            self.before_travel = 0
-            self.current_vel = 0
-            self.before_vel = 0
-            self.current_acc = 0
-            self.before_acc = 0
-            self.init = False
-            time.sleep(0.1)
-        # set limit
-        if len(self.x) >= self.limit:
-            self.tickPack.pop(0)
-            self.x.pop(0)
-            for var in self.varPack: self.varPack[var][container].pop(0)
-        # movement
-        self.tick += 1
-        self.current_t = round(time.perf_counter() - self.init_t, 3)                 
-        self.current_travel = abs(c.p.get_encoder_position(0))-self.init_travel
-        self.current_vel = (self.current_travel-self.before_travel)/(self.current_t-self.before_t)
-        self.current_acc = (self.current_vel - self.before_vel)/(self.current_t-self.before_t)
-        self.before_t = self.current_t
-        self.before_travel = self.current_travel
-        self.before_vel = self.current_vel
-        self.before_acc = self.current_acc
-        # other sensor
-        col = c.sensing.col()
-        res = c.sensing.res()
-        p1 = c.sensing.p1()
-        p2 = c.sensing.p2()
-        # ADD DATA
-        if self.plotStat:
-            self.tickPack.append(self.tick)
-            self.x.append(self.current_t)
-            self.varPack['travel'][container].append(self.current_travel*self.varPack['travel'][scale]+self.varPack['travel'][offset])
-            self.varPack['vel'   ][container].append(self.current_vel*self.varPack['vel'][scale]+self.varPack['vel'][offset])
-            self.varPack['acc'   ][container].append(self.current_acc*self.varPack['acc'][scale]+self.varPack['acc'][offset])
-            self.varPack['col'   ][container].append(col*self.varPack['col'][scale]+self.varPack['col'][offset])
-            self.varPack['res'   ][container].append(res*self.varPack['res'][scale]+self.varPack['res'][offset])
-            self.varPack['p1'    ][container].append(p1*self.varPack['p1'][scale]+self.varPack['p1'][offset])
-            self.varPack['p2'    ][container].append(p2*self.varPack['p2'][scale]+self.varPack['p2'][offset])
-        # starting to plot
-        plt.cla()
-        for var in self.varPack:
-            if self.varPack[var][showStat]:
-                #plt.plot(self.tickPack, self.varPack[var][container], linewidth=1, label=self.varPack[var][label])
-                plt.plot(self.x, self.varPack[var][container], linewidth=1, label=var)
-        elapsedTime = round((time.perf_counter() - t1)*1000.0, 4)
-        plt.legend(loc='upper left')
-        plt.xlabel('time (s)')
-        plt.title('Sensor Plotter | {} ms/tick'.format(elapsedTime))
-        plt.text(100,100,str(self.limit))
-        # end of plotting =======================
-        print(1/elapsedTime,end='\r')
-
-    class CPlotter():
-        #============================= LIVE PLOTTER USING QT ===============================
-        def __init__(self):
-            self.init = False
-            self.plotStat = False
-            self.init_t = time.time()
-            self.avgTime = []
-            self.x = []
-            self.thread = None
-            self.func = None
-            self.args = None
-            self.quit = True
-            self.limit = 100
-            self.win = None
-            self.current_t = 0
-            self.before_t = 0
-            self.init_travel = 0
-            self.before_travel = 0
-            self.current_vel = 0
-            self.before_vel = 0
-            self.current_acc = 0
-            self.before_acc = 0
-            self.varPack = {
-                'travel': [[], 'travel', False, 1.0, 0.0],
-                'vel': [[], 'vel', False, 20.0, 0.0],
-                'acc': [[], 'acc', False, 1.0, 0.0],
-                'col': [[], 'col', False, 1.0, 0.0],
-                'res': [[], 'res', False, 0.4, 0.0],
-                'p1': [[], 'p1', False, 3.0, -2000.0],
-                'p2': [[], 'p2', False, 3.0, -2000.0]
-            }
-
-        def run(self,*args,**kargs): #function, param1, param2, dll
-            if args:
-                if kargs:
-                    if 'quit' in kargs: self.quit = kargs['quit']
-                else:
-                    self.quit = True
-                printg('Realtime Plotter Started..')
-                newArgs = list(args)
-                self.func = newArgs.pop(0)
-                self.args = tuple(newArgs) if len(args) > 1 else None                
-                self.thread1 = threading.Thread(target=self.execute)
-                self.thread1.start()
-                time.sleep(0.1)
-                # set sensor yang mau diplot <nama sensor>=True di parameter
-                self.liveplot(p1=True,p2=True,vel=True,res=True)
-                if self.thread1.isAlive(): 
-                    printg('waiting for thrad to be done')
-                    self.thread1.join()
-                printg('Live Plotter Finished.. ')
-            else:
-                printr('Please input function!')
-
-        def execute(self):
-            time.sleep(2)
-            self.func(*self.args) if self.args else self.func()
-            time.sleep(2)
-            if self.quit: self.plotStat = False
-
-        def liveplot(self,*s,**show):
-            self.init = True
-            self.plotStat = True
-            self.win = pg.GraphicsLayoutWidget(show=True)
-            self.win.resize(1000,600)
-            self.win.setWindowTitle('Live Plotter')
-            self.wiplot = self.win.addPlot(title='CPlotter')
-            self.wiplot.addLegend()
-            self.wiplot.setLabel('bottom','Ticks','n')
-            self.current_t = 0
-            self.before_t = 0
-            self.init_travel = 0
-            self.before_travel = 0
-            self.current_vel = 0
-            self.before_vel = 0
-            self.current_acc = 0
-            self.before_acc = 0
-            self.x = []            
-            container, label, showStat, scale, offset = 0, 1, 2, 3, 4
-            labelTravel = 'travel' if (self.varPack['travel'][scale] == 1 and not self.varPack['travel'][offset]) else 'travel (scaled)'
-            labelVel    = 'vel' if (self.varPack['vel'][scale] == 1 and not self.varPack['vel'][offset]) else 'vel (scaled)'
-            labelAcc    = 'acc' if (self.varPack['acc'][scale] == 1 and not self.varPack['acc'][offset]) else 'acc (scaled)'
-            labelCol    = 'col' if (self.varPack['col'][scale] == 1 and not self.varPack['col'][offset]) else 'col (scaled)'
-            labelRes    = 'res' if (self.varPack['res'][scale] == 1 and not self.varPack['res'][offset]) else 'res (scaled)'
-            labelP1     = 'p1' if (self.varPack['p1'][scale] == 1 and not self.varPack['p1'][offset]) else 'p1 (scaled)'
-            labelP2     = 'p2' if (self.varPack['p2'][scale] == 1 and not self.varPack['p2'][offset]) else 'p2 (scaled)'
-            self.varPack['travel'].append(self.wiplot.plot(pen=(255,150,25), name=labelTravel))
-            self.varPack['vel'].append(self.wiplot.plot(pen='y',name=labelVel))
-            self.varPack['acc'].append(self.wiplot.plot(pen='b',name=labelAcc))
-            self.varPack['col'].append(self.wiplot.plot(pen='g',name=labelCol))
-            self.varPack['res'].append(self.wiplot.plot(pen='c',name=labelRes))
-            self.varPack['p1'].append(self.wiplot.plot(pen=(100,40,250),name=labelP1))
-            self.varPack['p2'].append(self.wiplot.plot(pen=(220,60,19),name=labelP2))             
-            if 'limit' in show: self.limit = show['limit']
-            for var in self.varPack:
-                if var in show: self.varPack[var][showStat] = show[var]
-            for var in self.varPack:
-                if var in s: self.varPack[var][showStat] = True
-            printy("IGNORE ANY ERROR..")
-            timer = QtCore.QTimer()
-            timer.timeout.connect(self.autoUpdate)
-            timer.start(1)
-            QtGui.QApplication.instance().exec_()            
-            for key in self.varPack.keys(): 
-                self.varPack[key][0] = []
-                self.varPack[key].pop(-1)
-            printy("IGNORE ANY ERROR..")
-
-        def autoUpdate(self):
-            if self.plotStat:
-                t1 = time.perf_counter()
-                # start to add data =======================
-                container, label, showStat, scale, offset, plotClass = 0, 1, 2, 3, 4, 5            
-                if self.init:
-                    self.init_t = time.perf_counter()
-                    self.current_t = time.perf_counter() - self.init_t
-                    self.before_t = 0
-                    self.init_travel = abs(c.get_motor_pos())
-                    self.before_travel = 0
-                    self.current_vel = 0
-                    self.before_vel = 0
-                    self.current_acc = 0
-                    self.before_acc = 0
-                    self.init = False
-                    time.sleep(0.1)
-                # set limit
-                if len(self.varPack['travel'][0]) >= self.limit:
-                    #self.x.pop(0)
-                    for var in self.varPack: self.varPack[var][container].pop(0)
-                # Movement
-                self.current_t = round(time.perf_counter() - self.init_t, 3)
-                self.current_travel = abs(c.get_motor_pos())-self.init_travel
-                self.current_vel = (self.current_travel-self.before_travel)/(self.current_t-self.before_t)
-                self.current_acc = (self.current_vel - self.before_vel)/(self.current_t-self.before_t)
-                self.before_t = self.current_t
-                self.before_travel = self.current_travel
-                self.before_vel = self.current_vel
-                self.before_acc = self.current_acc
-                # Sensors
-                col = c.sensing.col()
-                res = c.sensing.res()
-                p1 = c.sensing.p1()
-                p2 = c.sensing.p2()
-                # ADD DATA
-                #self.x.append(self.current_t)                
-                self.varPack['travel'][container].append(self.current_travel*self.varPack['travel'][scale]+self.varPack['travel'][offset])
-                self.varPack['vel'   ][container].append(self.current_vel*self.varPack['vel'][scale]+self.varPack['vel'][offset])
-                self.varPack['acc'   ][container].append(self.current_acc*self.varPack['acc'][scale]+self.varPack['acc'][offset])
-                self.varPack['col'   ][container].append(col*self.varPack['col'][scale]+self.varPack['col'][offset])
-                self.varPack['res'   ][container].append(res*self.varPack['res'][scale]+self.varPack['res'][offset])
-                self.varPack['p1'    ][container].append(p1*self.varPack['p1'][scale]+self.varPack['p1'][offset])
-                self.varPack['p2'    ][container].append(p2*self.varPack['p2'][scale]+self.varPack['p2'][offset])
-                if len(self.varPack['travel'][0])  <= self.limit:
-                    self.x = [i+1 for i in range(len(self.varPack['travel'][0]))]
-                # start to plot
-                for var in self.varPack:
-                    if self.varPack[var][showStat]:
-                        self.varPack[var][plotClass].setData(self.x,self.varPack[var][container])
-                # end of plotting =======================
-                spd = round((time.perf_counter() - t1)*1000.0,1)
-                print(" ", spd, "ms/tick", end='\r')
-            else:
-                #self.terminate()
-                #QtGui.QApplication.quit()
-                self.win.close()
-
-        def terminate(self):
-            self.plotStat = False
-
-        def setSensor(self,**sens): # untuk set sensor dari terminal dan limit
-            container, label, showStat, scale = 0, 1, 2, 3
-            if 'limit' in sens: self.limit = sens['limit']
-            for sensor in sens:
-                if sensor in self.varPack:
-                    self.varPack[sensor][showStat] = sens[sensor]
-                    print(sensor+" plot enabled")
-
-        def setScale(self,**vars): # untuk scaling chart
-            container, label, showStat, scale = 0, 1, 2, 3
-            if vars:
-                for var in vars:
-                    if var in self.varPack:
-                        self.varPack[var][scale] = vars[var]
-                        print(var+"'s scale:", vars[var])
-            else:
-                print('No Scale is Changed')
-
-        def setOffset(self,**vars): # untuk offsetting chart
-            container, label, showStat, offset = 0, 1, 2, 4
-            if vars:
-                for var in vars:
-                    if var in self.varPack:
-                        self.varPack[var][offset] = vars[var]
-                        print(var+"'s offset:", vars[var])
-            else:
-                print('No Offset is Changed')
-
-        def checkStatus(self):
-            print('check')
-            for var in self.varPack:
-                print(var,'\t:', self.varPack[var][2])
-"""
-
-#plotter = Plotter()
-#cplotter = Plotter.CPlotter()
-
 plotter = Plotter(c.p)
 cplotter = CPlotter(c.p)
 
@@ -2600,8 +2138,7 @@ class mainLLD():
             df.to_csv(filename,index=False)
             speedMode('s')
 
-lld = mainLLD()
-
+lld = mainLLD
 LLD = mainLLD.Operation('LLD')
 LLD.zero = -90
 LLD.res = 3100
@@ -2820,28 +2357,31 @@ class mainLLT():
             
     @staticmethod
     def similarityCheck():
-        # Response Delay
-        df = pd.read_csv(cplotter.fname)
-        tPack = df['tick']
-        resPack = df['res']
-        velPack = df['vel']
-        t_res, t_vel = [], []
-        for i, t in enumerate(tPack):
-            if i >= 3:
-                if resPack[i] - resPack[i-2] >= 100: t_res.append(t)
-                if velPack[i] - velPack[i-2] >= 100: t_vel.append(t)
-        if len(t_res) == 0: t_res = [tPack[len(tPack)-1]]
-        if len(t_vel) == 0: t_vel = [tPack[len(tPack)-1]]
-        response_delay = t_vel[0] - t_res[0]
-        # Similarity
-        gaps, devs = [], []
-        for i in range(len(tPack)): gaps.append(resPack[i] - velPack[i])
-        avgGap = np.average(gaps)
-        for gap in gaps: devs.append(abs(gap - avgGap))
-        avgDev = np.average(devs)
-        similarity = round((avgGap-avgDev)/avgGap,4)
-        printb('Res-Vel Similarity: {}% | Response Delay: {} ms'.format(similarity*100, response_delay))
-        return similarity, response_delay
+        try:
+            # Response Delay
+            df = pd.read_csv(cplotter.fname)
+            tPack = df['tick']
+            resPack = df['res']
+            velPack = df['vel']
+            t_res, t_vel = [], []
+            for i, t in enumerate(tPack):
+                if i >= 3:
+                    if resPack[i] - resPack[i-2] >= 100: t_res.append(t)
+                    if velPack[i] - velPack[i-2] >= 100: t_vel.append(t)
+            if len(t_res) == 0: t_res = [tPack[len(tPack)-1]]
+            if len(t_vel) == 0: t_vel = [tPack[len(tPack)-1]]
+            response_delay = t_vel[0] - t_res[0]
+            # Similarity
+            gaps, devs = [], []
+            for i in range(len(tPack)): gaps.append(resPack[i] - velPack[i])
+            avgGap = np.average(gaps)
+            for gap in gaps: devs.append(abs(gap - avgGap))
+            avgDev = np.average(devs)
+            similarity = round((avgGap-avgDev)/avgGap,4)
+            printb('Res-Vel Similarity: {}% | Response Delay: {} ms'.format(similarity*100, response_delay))
+            return similarity, response_delay
+        except:
+            printr('Last plotter log doesnt exist.. execute llt.pipettingTest() first!')
 
     @staticmethod
     def test_setUp(tip, volume,iters=1):
@@ -2876,7 +2416,7 @@ class mainLLT():
         else:
             return mainLLT.test_setUp(tip, volume, iters, log=True)
 
-llt = mainLLT()
+llt = mainLLT
 
 # NOTIFICATION & ALERT
 class avoidInpErr():

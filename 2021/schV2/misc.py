@@ -59,7 +59,7 @@ SPlotter --> Safe PyQt Plotter (Manual Multiprocessing)
 ** Under Development **
 
 
-"""
+
 
 class Plotter():
     def __init__(self, obj):
@@ -464,3 +464,6 @@ class CPlotter():
         for var in self.varPack:
             print(var,'\t:', self.varPack[var][2])
 
+"""
+
+from FLOPlotter2 import *

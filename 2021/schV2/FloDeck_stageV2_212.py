@@ -225,15 +225,15 @@ def setTravelMode(mode):
         travel_jerk = 90*eng_value #platereader
 
 #zero mode SETTER
-def setZeroDeckMode(mode):
+def setZeroDeckMode(tip):
     global zero_deck, row0,row1,row2,col0,col1,col2,Rack_coord_0, Rack_coord_1,Rack_coord_2,racks
-    if mode == 20:
+    if tip == 20:
         #zero_deck = [[260,122],[160,122],[59,122]] # UNTUK CADDY P20 NONCOATING
         zero_deck = [[261,122],[160,122],[59,122]] # UNTUK CADDY P20 COATING
-    elif mode == 200:
+    elif tip == 200:
         zero_deck = [[260.5,122],[160,122],[59,122]] # UNTUK CADDY P200 NONCOATING
         #zero_deck = [[261.5,122],[160,122],[59,122]] # UNTUK CADDY P200 COATING
-    elif mode == 1000:
+    elif tip == 1000:
         zero_deck = [[260.5,122],[160,122],[59,122]] # UNTUK CADDY P1000 NONCOATING
     row0 = arange(zero_deck[0][0],zero_deck[0][0]-72,-8.9)
     col0 = arange(zero_deck[0][1],zero_deck[0][1]-108,-9)

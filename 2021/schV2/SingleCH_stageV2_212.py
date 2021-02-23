@@ -1927,22 +1927,21 @@ class mainLLD():
                 #align(0, next_pickpos, 0)
 
         @staticmethod #Depthing with different flows
-        def dryDepthing(tip=20,flow=10,depthing=0,single=False,**kargs): # PLLD test in the number of iterations
-            # Depthing 0: Normal PLLD (Hard + Normal)
-            # Depthing 1: Hard Brake
+        def dryDepthing(tip=20,flow=10,depthing=0,single=False,**kargs): # Single PLLD test in the number of iterations
+            # Depthing 0: Hardbrake (Res + Pres))
+            # Depthing 1: HardBrake Pres
             if single:
                 anchorFlow = c.PLLDConfig.flow[tip]
                 c.PLLDConfig.flow[tip] = flow
                 zref = lld.findSurface(target, lowSpeed=True, tip=tip); time.sleep(0.5)
                 c.move_rel_z(5,100,200)
                 wawik(1,'D10',target+30)
-                #c.start_logger()
                 zdet = lld.findSurface(target,depthing=depthing, tip=tip); time.sleep(0.5)
-                #c.stop_logger()
+                depth = zref - zdet
                 print('PLLD FLOW', c.PLLDConfig.flow[tip])
                 c.PLLDConfig.flow[tip] = anchorFlow
                 wawik(1,'D10',target+30)
-                return zref, zdet
+                return zref, zdet, depth
             else:
                 target = globals()['asp_targets'][tip]
                 range1 = kargs['range1'] if 'range1' in kargs else 10
@@ -1956,8 +1955,8 @@ class mainLLD():
                     c.clear_estop()
                     c.move_abs_z(target+30,100,200)
                     for flow in refs:
-                        zref, zdet = lld.test.dryDepthing(tip,flow,depthing,True)
-                        datas.append([flow, zref, zdet, round(zref-zdet,2)])
+                        zref, zdet, depth = lld.test.dryDepthing(tip,flow,depthing,True)
+                        datas.append([flow, zref, zdet, round(depth,2)])
                         printy('ITER NO:',it,'| FLOW:',flow)
                 filename = 'Level/{}_{}xDryDepthingMode{}_{}.csv'.format(tip,iters,depthing,int(time.time()))
                 df = pd.DataFrame(datas,columns=['Flow','Z Ref','Z PLLD','Depth'])
@@ -1965,36 +1964,41 @@ class mainLLD():
                 printg('DONE!')
 
         @staticmethod
-        def wetDepthing(tip=20,single=False): # WLLD test in the number of iterations
-            filename = 'Level/{}_{}wetDepthing_{}.csv'.format(tip,iters,int(time.time()))
-            datas = []
-            target = globals()['asp_targets'][tip]
-            for it in range(iters):
-                freqs, zrefs, zdets = [], [], []
-                c.move_abs_z(target+20,100,200)
-                for freq in range(100,1100,100):
-                    anchorFreq = c.PLLDConfig.freq
-                    c.PLLDConfig.freq = freq
-                    zref = lld.findSurface(target, lowSpeed=True, tip=tip)
-                    c.move_rel_z(10,100,200)
-                    wawik(1,'D7',target)
-                    #c.start_logger()
-                    zdet = lld.findSurface(target,lld='wet', tip=tip)
-                    #c.stop_logger()
-                    print('PLLD Freq', c.PLLDConfig.freq)
-                    print('zref:',zref,'| zdet:',zdet,'| freq:',freq)
-                    freqs.append(freq)
-                    zrefs.append(zref)
-                    zdets.append(zdet)
-                    c.PLLDConfig.freq = anchorFreq
-                    wawik(1,'D7',target)
-                for i, freq in enumerate(freqs):
-                    print('flow:',freq,'| zref:',zrefs[i],'| zdet:',zdets[i])
-                    datas.append([freq,zrefs[i],zdets[i],zrefs[i]-zdets[i]])
-                datas.append([it+1,it+1,it+1,it+1])
-            df = pd.DataFrame(datas,columns=['Freq','Z Ref','Z PLLD','Depth'])
-            df.to_csv(filename, index=False)
-            printg('DONE!')
+        def wetDepthing(tip=20,resThres=100,single=False,**kargs): # WLLD test in the number of iterations
+            if single:
+                anchorRes = c.PLLDConfig.resThres
+                c.PLLDConfig.resThres = res
+                zref = lld.findSurface(target, lowSpeed=True, tip=tip)
+                c.move_rel_z(10,100,200)
+                wawik(1,'D7',target)
+                zdet = lld.findSurface(target,lld='wet', tip=tip)
+                depth = zdet - zref
+                print('WLLD resThres', c.WLLDConfig.resThres)
+                print('res:',res,'| depth:',depth)
+                c.PLLDConfig.resThres = anchorRes
+                wawik(1,'D7',target)
+                return zref,zdet,depth
+            else:
+                target = globals()['asp_targets'][tip]
+                range1 = kargs['range1'] if 'range1' in kargs else 100
+                range2 = kargs['range2'] if 'range2' in kargs else 500
+                space = kargs['space'] if 'space' in kargs else 100
+                iters = kargs['iters'] if 'iters' in kargs else 1
+                datas = []
+                refs = list(range(range1,range2+space,space)) 
+                for it in range(iters):
+                    c.clear_motor_fault()
+                    c.clear_estop()
+                    c.move_abs_z(target+20,100,200)
+                    for res in range(range1,range2,space):
+                        zref,zdet,depth = mainLLD.test.wetDepthing(tip,res,True)
+                        datas.append([res, zref, zdet, round(depth,2)])
+                        printy('ITER NO:',it,'| Freq:',res)
+                    #datas.append([it+1,it+1,it+1,it+1])
+                filename = 'Level/{}_{}wetDepthing_{}.csv'.format(tip,iters,int(time.time()))
+                df = pd.DataFrame(datas,columns=['Res','Z Ref','Z WLLD','Depth'])
+                df.to_csv(filename, index=False)
+                printg('DONE!')
 
         @staticmethod #base method for referencing different flows by blowing the stem underwater
         def flowReferencing(tip=20, flow=c.PLLDConfig.flow[20], single=False,**kargs):
@@ -2022,22 +2026,22 @@ class mainLLD():
                     print('Flow : {}'.format(flow))
                     lld.test.flowReferencing(tip, flow, True)
 
-        @staticmethod #base method for surface referencing different res by WLLD
-        def resReferencing(tip=20, freq=c.PLLDConfig.freq, single=False, **kargs):
+        @staticmethod #base method for WLLD referencing with different freq
+        def freqReferencing(tip=20, freq=c.WLLDConfig.freq, single=False, **kargs):
             if single:
                 print('Freq: {}'.format(freq))
-                targets = {20:-125, 200:-115, 1000:-65}
-                target = targets[tip]
+                target = globals()['targets'][tip]
                 mainLLD.test.runStat = True
                 source = 'D10'
                 align(1,source,target+60)
                 zref = lld.findSurface(target,lowSpeed=True, tip=tip)
                 anchor = c.WLLDConfig.freq
                 c.WLLDConfig.freq = freq
+                depth = zdet - zref
                 zdet = lld.findSurface(target,lld='wet', tip=tip)
-                printr('Zero: {} | Freq: {}'.format(zero, freq))
+                printr('Depth: {} | Freq: {}'.format(depth, freq))
                 c.WLLDConfig.freq = anchor
-                return zref, zdet
+                return zref, zdet, depth
             else:
                 range1 = kargs['range1'] if 'range1' in kargs else 100
                 range2 = kargs['range2'] if 'range2' in kargs else 200
@@ -2045,24 +2049,24 @@ class mainLLD():
                 iters = kargs['iters'] if 'iters' in kargs else 1
                 datas = []
                 refs = list(range(range1,range2+space,space))
-                for fr in refs:
-                    datas.append([fr])
+                for freq in refs:
+                    datas.append([freq])
                     for i in range(iters):
-                        zref, zdet = lld.test.resReferencing(tip,fr,True)
-                        datas[len(datas)-1].append(zref-zdet)
-                    sdev = np.std(datas[len(datas)-1])
-                    avg = np.average(datas[len(datas)-1])
+                        zref, zdet, depth = lld.test.resReferencing(tip,freq,True)
+                        datas[len(datas)-1].append(depth)
+                    sdev = np.std(datas[len(datas)-1][1:])
+                    avg = np.average(datas[len(datas)-1][1:])
                     datas[len(datas)-1].append(avg)
                     datas[len(datas)-1].append(sdev/avg)
                 cols = ['depth_'+str(i) for i in range(len(refs))]
                 cols.insert(0,'Freq'); cols.append('avg'); cols.append('cv')
                 df = pd.DataFrame(datas,columns=cols)
-                df.to_csv("Level/PLLDResReferencing_{}.csv".format(int(time.time())),index=False)
+                df.to_csv("Level/FreqReferencing_{}.csv".format(int(time.time())),index=False)
 
         @staticmethod #method to find false positive of PLLD
-        def pthresReferencing(thresh,tip=20,single=False,**kargs):
+        def pthresReferencing(tip=20,thresh=c.PLLDConfig.pressThres[20],single=False,**kargs):
             if single:
-                speedMode('plate')
+                speedMode('f')
                 c.move_abs_z(-95,100,1000)
                 zref = lld.findSurface(-110,lowSpeed=True, tip=tip)
                 c.move_abs_z(0,100,1000)
@@ -2070,8 +2074,9 @@ class mainLLD():
                 zdet = lld.findSurface(-110,depthing=1, tip=tip)
                 c.move_abs_z(0,100,1000)
                 wawik(1,'D7',0)
-                speedMode('default')
-                return zref, zdet
+                speedMode('m')
+                depth = zdet - zref
+                return zref, zdet, depth
             else:
                 range1 = kargs['range1'] if 'range1' in kargs else 1
                 range2 = kargs['range2'] if 'range2' in kargs else 2
@@ -2084,8 +2089,8 @@ class mainLLD():
                     anchorT = c.PLLDConfig.pressThres[tip]
                     c.PLLDConfig.pressThres[tip] = th
                     for i in range(iters):
-                        zref, zdet = lld.test.pthresReferencing(th,tip,True)
-                        datas[len(datas)-1].append(zref-zdet)
+                        zref, zdet, depth = lld.test.pthresReferencing(th,tip,True)
+                        datas[len(datas)-1].append(depth)
                     c.PLLDConfig.pressThres[tip] = anchorT
                     sdev = np.std(datas[len(datas)-1])
                     avg = np.average(datas[len(datas)-1])

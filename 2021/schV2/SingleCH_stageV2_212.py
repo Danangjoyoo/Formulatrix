@@ -279,7 +279,7 @@ def resistance_check():
     return status
 
 
-def picktip(pos='None',target=None,safe=None,userinput=0,tip=None,nextPosOnly=False):
+def picktip(pos='None',target=None,safe=None,tip=None,nextPosOnly=False):
     deck.setZeroDeckMode(tip)
     if not target: target = globals()['pick_targets'][tip]
     if not safe: safe = globals()['safes'][tip]
@@ -331,7 +331,7 @@ def ASP(vol):
 def DISP(vol):
     c.dispensexxx(vol,100,10,200,5000)
 
-def aspirate(vol,tip=200,log=0):
+def aspirate(vol,tip=200,log=False):
     maxflow = 100#special case
     minflow = 5
     if tip ==  200:
@@ -1620,7 +1620,7 @@ class mainLLD():
         return zero
 
     # LLD TEST / TIP RECIPROCATING
-    class test():
+    class Test():
         runStat = True
 
         @staticmethod
@@ -1629,19 +1629,19 @@ class mainLLD():
             mainLLD.test.runStat = False
 
         @staticmethod
-        def baseline(*kw):
+        def baseline(*args):
             mainLLD.test.runStat = True
             tip, iters, pickpos = None, None, None
-            if not kw:
+            if not args:
                 printy('!!! PUT THE WATER BUCKET ON RACK 1-D7 !!!')
                 inputs1 = avoidInpErr.reInput('Tip, Iter, Pickpos >> ')
                 tip = int(inputs1.split(',')[0])
                 iters = int(inputs1.split(',')[1])
                 pickpos = inputs1.split(',')[2]
             else:
-                tip = kw[0]
-                iters = kw[1]
-                pickpos = kw[2]
+                tip = args[0]
+                iters = args[1]
+                pickpos = args[2]
 
             deck.setZeroDeckMode(tip)
             speedMode('f')
@@ -2137,6 +2137,7 @@ class mainLLD():
             df = pd.DataFrame(datas,columns=['Flow','Threshold','Dynamic Thresh', 'Z Ref', 'Z Det', 'Depth'])
             df.to_csv(filename,index=False)
             speedMode('s')
+    test = Test
 
 lld = mainLLD
 LLD = mainLLD.Operation('LLD')
@@ -2203,7 +2204,7 @@ class mainLLT():
                 abs(mainLLT.threshold),
                 c.DLLTConfig.Res.stepSize,
                 c.DLLTConfig.Res.bigStep,
-                1)
+                c.DLLTConfig.Res.samplingTime)
             print(mainLLT.threshold)
             c.p.start_liquid_tracker(0)
 
@@ -2230,7 +2231,7 @@ class mainLLT():
     @staticmethod
     def run(tip=20,operation='asp'):
         if not c.p.get_liquid_tracker_run():
-            #if not mainLLT.resNoise:
+            #if samplesize is higher than 1000 using this
             #noise = c.sensing.noiseCheck(c.SensorMask.DLLT_RESISTANCE, c.DLLTConfig.sampleSize)
             noise = [c.sensing.res() for i in range(c.DLLTConfig.sampleSize)]
             mainLLT.resNoise = max(noise) - min(noise)
@@ -2277,7 +2278,7 @@ class mainLLT():
                 mainLLT.Res.stop()
             else:
                 c.p.stop_liquid_tracker()
-            if postMove: c.move_rel_z(30,100,200)
+            if postMove: c.move_rel_z(20,100,200)
             LLD.reset()
             mainLLT.lltMode = None
             printg('LLT Terminated')
@@ -2388,20 +2389,25 @@ class mainLLT():
         printy("LLT Pipetting Test Started..")
         targets = {20: -130, 200: -120, 1000: -40}
         vol = volume
-        mainLLT.run(tip=tip,operation='asp')
         mainLLT.testStat = True
         for i in range(iters):
-            time.sleep(2.5)
+            c.start_flow(100,1)        
+            lld.findSurface(-190,lld='wet')
+            mainLLT.run(tip=tip,operation='asp')
             aspirate(vol*0.95, tip)
-            time.sleep(2.5)
+            time.sleep(2)
+            mainLLT.terminate(postMove=True)
+            lld.findSurface(-190,lld='wet')
+            mainLLT.run(tip=tip, operation='dsp')
             dispense(vol*1.1, tip)
+            time.sleep(2)
+            mainLLT.terminate(postMove=True)
         time.sleep(2)
-        mainLLT.terminate(postMove=True)
+        #mainLLT.terminate(postMove=True)
         c.move_rel_z(30,100,200)
         cplotter.terminate()
         mainLLT.testStat = False
         printy("LLT Pipetting Test Finished..")
-
 
     @staticmethod
     def pipettingTest(tip, volume,iters=1,live=True,tool=1):

@@ -2054,11 +2054,12 @@ def config_status():
 	print('belum')
 
 def start_flow(flow, dur=None):	
-	p.start_regulator_mode(2,flow,1,0,0)
 	if dur:
 		start_flow(flow)
 		time.sleep(dur)
 		abort_flow()
+	else:		
+		p.start_regulator_mode(2,flow,1,0,0)
 
 def release_to_atm(prints=False):
 
@@ -2701,12 +2702,12 @@ class DLLTConfig(): # ================== THIS IS V2 CONFIG
 		bigStep = 10
 		kp = {20: 1.2, 200: 0.15, 1000: 0.95}
 		ki = 0
-		kd = {20: 0.126, 200: 0.015, 1000: 0.095}
+		kd = {20: 0.126, 200: 0, 1000: 0.095}
 		inverted = False
 		stem_vel = {20: 10, 200: 10, 1000:10}
 		stem_acc = {20: 20, 200: 20, 1000:20}
 		colThres = 40
-		samplingTime = 15
+		samplingTime = 1
 
 	class Geo:
 		trackFactor = 6.36

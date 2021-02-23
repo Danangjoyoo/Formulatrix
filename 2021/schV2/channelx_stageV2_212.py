@@ -1016,16 +1016,16 @@ def minicek():
     stop_logger()
 
 
-def aspirate(vol,flow,flowmin=5,log=0,timeout=5000,tip=200):
+def aspirate(vol,flow,flowmin=5,log=False,timeout=5000,tip=200):
 	#p.set_abort_config(7,0,512,0,0)
 	start = time.time()
 	
-	if log == 1:
+	if log:
 		start_logger(0,SensorMask.PRESSURE_P1+SensorMask.PRESSURE_P2)
 		time.sleep(1)
 	start_pipetting(-1*vol, flow,flowmin,tip,timeout)
 	print(time.time()-start)
-	if log == 1:
+	if log:
 		stop_logger()
 		time.sleep(1)
 
@@ -2706,6 +2706,7 @@ class DLLTConfig(): # ================== THIS IS V2 CONFIG
 		stem_vel = {20: 10, 200: 10, 1000:10}
 		stem_acc = {20: 20, 200: 20, 1000:20}
 		colThres = 40
+		samplingTime = 15
 
 	class Geo:
 		trackFactor = 6.36
@@ -2887,32 +2888,6 @@ def check_triggered_input(abort=None):
 def get_triggered_input(ids):
 	return p.get_triggered_inputs(ids)
 
-def sensorRate(dur=0,log=False,maxTick=0):
-	print('Press ESC to stop..')
-	t0 = time.time()
-	p1pack, p2pack, respack, colpack = [],[],[],[];	varpack = [p1pack, p2pack, respack, colpack]
-	p1_amp, p2_amp, res_amp, col_amp = 0,0,0,0;	amps = [p1_amp, p2_amp, res_amp, col_amp]
-	if log: start_logger(0,51)
-	while True:
-		if kb.is_pressed('ESC'): break
-		t1 = round(time.time()-t0,2)
-		p1 = round(sensing.p1(),2)
-		p2 = round(sensing.p2(),2)
-		res = round(sensing.res(),2)
-		col = round(sensing.col(),2)
-		senspack = [p1,p2,res,col]
-		for i in range(len(varpack)): varpack[i].append(senspack[i])
-		for i in range(len(amps)): amps[i] = round(np.max(varpack[i]) - np.min(varpack[i]),2)
-		if t1 >= dur:
-			if dur: break
-		if len(p1pack) >= maxTick:
-			if maxTick: break
-		print(str(t1)+'s | tick: {} | P1: {} | P2: {} | Res: {} | Col: {}'.format(len(p1pack),*tuple(senspack))+'\r', end=' ')
-	if log: stop_logger()
-	print('\nStopped at {}s\nAmplitudes..'.format(t1))
-	print('aP1: {} | aP2: {} | aRes: {} | aCol: {}'.format(*tuple(amps)))
-	print('Average..')
-	print('avgP1: {} | avgP2: {} | avgRes: {} | avgCol: {}'.format(*tuple([round(np.average(var),2) for var in varpack])))
 
 class ReadSensor():
 	def __init__(self): pass
@@ -2936,5 +2911,31 @@ class ReadSensor():
 		df = pd.read_csv(globals()['file_name'])
 		key = globals()['STRING_SENSOR_MASK'][(sensorMask>>1)]
 		return np.average(df[key])
+	def sensorRate(self,dur=0,log=False,maxTick=0):
+		print('Press ESC to stop..')
+		t0 = time.time()
+		p1pack, p2pack, respack, colpack = [],[],[],[];	varpack = [p1pack, p2pack, respack, colpack]
+		p1_amp, p2_amp, res_amp, col_amp = 0,0,0,0;	amps = [p1_amp, p2_amp, res_amp, col_amp]
+		if log: start_logger(0,51)
+		while True:
+			if kb.is_pressed('ESC'): break
+			t1 = round(time.time()-t0,2)
+			p1 = round(sensing.p1(),2)
+			p2 = round(sensing.p2(),2)
+			res = round(sensing.res(),2)
+			col = round(sensing.col(),2)
+			senspack = [p1,p2,res,col]
+			for i in range(len(varpack)): varpack[i].append(senspack[i])
+			for i in range(len(amps)): amps[i] = round(np.max(varpack[i]) - np.min(varpack[i]),2)
+			if t1 >= dur:
+				if dur: break
+			if len(p1pack) >= maxTick:
+				if maxTick: break
+			print(str(t1)+'s | tick: {} | P1: {} | P2: {} | Res: {} | Col: {}'.format(len(p1pack),*tuple(senspack))+'\r', end=' ')
+		if log: stop_logger()
+		print('\nStopped at {}s\nAmplitudes..'.format(t1))
+		print('aP1: {} | aP2: {} | aRes: {} | aCol: {}'.format(*tuple(amps)))
+		print('Average..')
+		print('avgP1: {} | avgP2: {} | avgRes: {} | avgCol: {}'.format(*tuple([round(np.average(var),2) for var in varpack])))
 
 sensing = ReadSensor()

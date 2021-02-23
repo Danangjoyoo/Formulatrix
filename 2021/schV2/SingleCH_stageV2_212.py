@@ -1927,7 +1927,7 @@ class mainLLD():
                 #align(0, next_pickpos, 0)
 
         @staticmethod #Depthing with different flows
-        def dryDepthing(tip=20,flow=10,depthing=0,single=False,**kargs): # Single PLLD test in the number of iterations
+        def flowReferencing(tip=20,flow=10,depthing=0,single=False,**kargs): # Single PLLD test in the number of iterations
             # Depthing 0: Hardbrake (Res + Pres))
             # Depthing 1: HardBrake Pres
             if single:
@@ -1955,16 +1955,16 @@ class mainLLD():
                     c.clear_estop()
                     c.move_abs_z(target+30,100,200)
                     for flow in refs:
-                        zref, zdet, depth = lld.test.dryDepthing(tip,flow,depthing,True)
+                        zref, zdet, depth = lld.test.flowReferencing(tip,flow,depthing,True)
                         datas.append([flow, zref, zdet, round(depth,2)])
                         printy('ITER NO:',it,'| FLOW:',flow)
-                filename = 'Level/{}_{}xDryDepthingMode{}_{}.csv'.format(tip,iters,depthing,int(time.time()))
+                filename = 'Level/{}_{}xFlowReferencingMode{}_{}.csv'.format(tip,iters,depthing,int(time.time()))
                 df = pd.DataFrame(datas,columns=['Flow','Z Ref','Z PLLD','Depth'])
                 df.to_csv(filename, index=False)
                 printg('DONE!')
 
         @staticmethod
-        def wetDepthing(tip=20,resThres=100,single=False,**kargs): # WLLD test in the number of iterations
+        def resReferencing(tip=20,resThres=100,single=False,**kargs): # WLLD test in the number of iterations
             if single:
                 anchorRes = c.PLLDConfig.resThres
                 c.PLLDConfig.resThres = res
@@ -1991,11 +1991,11 @@ class mainLLD():
                     c.clear_estop()
                     c.move_abs_z(target+20,100,200)
                     for res in range(range1,range2,space):
-                        zref,zdet,depth = mainLLD.test.wetDepthing(tip,res,True)
+                        zref,zdet,depth = mainLLD.test.resReferencing(tip,res,True)
                         datas.append([res, zref, zdet, round(depth,2)])
                         printy('ITER NO:',it,'| Freq:',res)
                     #datas.append([it+1,it+1,it+1,it+1])
-                filename = 'Level/{}_{}wetDepthing_{}.csv'.format(tip,iters,int(time.time()))
+                filename = 'Level/{}_{}resReferencing{}.csv'.format(tip,iters,int(time.time()))
                 df = pd.DataFrame(datas,columns=['Res','Z Ref','Z WLLD','Depth'])
                 df.to_csv(filename, index=False)
                 printg('DONE!')
@@ -2052,7 +2052,7 @@ class mainLLD():
                 for freq in refs:
                     datas.append([freq])
                     for i in range(iters):
-                        zref, zdet, depth = lld.test.resReferencing(tip,freq,True)
+                        zref, zdet, depth = lld.test.freqReferencing(tip,freq,True)
                         datas[len(datas)-1].append(depth)
                     sdev = np.std(datas[len(datas)-1][1:])
                     avg = np.average(datas[len(datas)-1][1:])

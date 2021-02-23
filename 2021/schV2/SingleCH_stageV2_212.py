@@ -1142,7 +1142,7 @@ class Plate():
     @staticmethod
     def maps(realPos=False):
         maps = []
-        for idx_rows,rows in [char for char in string.ascii_uppercase[:8]]:
+        for idx_rows,rows in enumerate([char for char in string.ascii_uppercase[:8]]):
             maps.append([])
             for cols in range(12):
                 if realPos: maps[idx_rows].append(rows+str(cols+1))
@@ -1454,6 +1454,8 @@ class Plate():
                 eject()
         elapsedtime = (time.time()-starttime)
         print("Timeit = ", elapsedtime)
+
+plate = Plate
 
 plotter = Plotter(c.p)
 cplotter = CPlotter(c.p)
@@ -2001,7 +2003,7 @@ class mainLLD():
                 printg('DONE!')
 
         @staticmethod #base method for referencing different flows by blowing the stem underwater
-        def flowReferencing(tip=20, flow=c.PLLDConfig.flow[20], single=False,**kargs):
+        def blowReferencing(tip=20, flow=c.PLLDConfig.flow[20], single=False,**kargs):
             if single:
                 target = globals()['asp_targets'][tip]
                 c.abort_flow()
@@ -2024,7 +2026,7 @@ class mainLLD():
                 refs = list(range(range1,range2+space,space))
                 for flow in refs:
                     print('Flow : {}'.format(flow))
-                    lld.test.flowReferencing(tip, flow, True)
+                    lld.test.blowReferencing(tip, flow, True)
 
         @staticmethod #base method for WLLD referencing with different freq
         def freqReferencing(tip=20, freq=c.WLLDConfig.freq, single=False, **kargs):
@@ -2228,16 +2230,14 @@ class mainLLT():
     r2asp = 0
     r2dsp = 0
     r2diff = 0
-    threshold = None
+    threshold = 0
     lltMode = None
     testStat = False
-    resNoise = None
+    resNoise = 0
 
     @staticmethod
     def run(tip=20,operation='asp'):
         if not c.p.get_liquid_tracker_run():
-            #if samplesize is higher than 1000 using this
-            #noise = c.sensing.noiseCheck(c.SensorMask.DLLT_RESISTANCE, c.DLLTConfig.sampleSize)
             noise = [c.sensing.res() for i in range(c.DLLTConfig.sampleSize)]
             mainLLT.resNoise = max(noise) - min(noise)
             mainLLT.findThreshold(operation=operation)
@@ -2271,6 +2271,11 @@ class mainLLT():
                     mainLLT.Geo.init(operation=operation)
                     mainLLT.Geo.start()
             llt.check()
+            mainLLT.r1 = 0
+            mainLLT.r2asp = 0
+            mainLLT.r2dsp = 0
+            mainLLT.r2diff = 0
+            mainLLT.threshold = 0
         else:
             printr('DLLT ALREADY RUNNING!')
 
@@ -2343,7 +2348,7 @@ class mainLLT():
 
     @staticmethod
     def findThreshold(operation='asp',find=False):
-        print('Finding LLT Threshold..')
+        printb('Finding LLT Threshold..')
         if find:
             mainLLT.r1,_ = mainLLT.preReading()
             r2,_ = mainLLT.preReading(-c.PrereadingConfig.stepDown)
@@ -2352,8 +2357,10 @@ class mainLLT():
             if   str.lower(operation) == 'asp': mainLLT.r2asp = r2
             elif str.lower(operation) == 'dsp': mainLLT.r2dsp = r2
             print('r1: {} | r2: {} | Thres: {}'.format(mainLLT.r1, r2, mainLLT.threshold))
-            if abs(mainLLT.r1 - r2) <= mainLLT.resNoise: return False
-            else: return True
+            if abs(mainLLT.r1 - r2) <= mainLLT.resNoise:
+                return False
+            else:
+                return True
         else:
             if not LLD.surfaceFound and not llt.findThreshold(operation=operation,find=True):
                 LLD.reset()
@@ -2392,17 +2399,14 @@ class mainLLT():
     @staticmethod
     def test_setUp(tip, volume,iters=1):
         printy("LLT Pipetting Test Started..")
-        targets = {20: -130, 200: -120, 1000: -40}
         vol = volume
         mainLLT.testStat = True
         for i in range(iters):
-            c.start_flow(100,1)        
-            lld.findSurface(-190,lld='wet')
+            c.start_flow(100,1)
             mainLLT.run(tip=tip,operation='asp')
             aspirate(vol*0.95, tip)
             time.sleep(2)
             mainLLT.terminate(postMove=True)
-            lld.findSurface(-190,lld='wet')
             mainLLT.run(tip=tip, operation='dsp')
             dispense(vol*1.1, tip)
             time.sleep(2)

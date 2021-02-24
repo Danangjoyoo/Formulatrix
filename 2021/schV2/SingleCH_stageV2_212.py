@@ -1536,7 +1536,7 @@ class mainLLD():
             self.saturated = False
 
     @staticmethod
-    def findSurface(depth=-180,lld='dry',tip=20,lowSpeed=False,depthing=1):
+    def findSurface(depth=-180,lld='dry',tip=20,lowSpeed=False,detectMode=1):
         LLD.reset()
         print(('FindSurface Started.. lld: {} | lowSpeed: {} | depth: {}'.format(lld, lowSpeed, depth)))
         # MAIN FINDSURFACE====================        
@@ -1555,7 +1555,7 @@ class mainLLD():
         depth -= c.chipCalibrationConfig.colCompressTolerance
         if str.lower(lld) == 'dry':
             Dry.reset()
-            Dry.pressLimit = c.setUp_plld(tip=tip, lowSpeed=lowSpeed, depthing=depthing)
+            Dry.pressLimit = c.setUp_plld(tip=tip, lowSpeed=lowSpeed, detectMode=detectMode)
         elif str.lower(lld) == 'wet':
             Wet.reset()
             Wet.resLimit = c.setUp_wlld()
@@ -1928,17 +1928,17 @@ class mainLLD():
                         eject(tip=tip,ejectpos=pickpos)
                 #align(0, next_pickpos, 0)
 
-        @staticmethod #Depthing with different flows
-        def flowReferencing(tip=20,flow=10,depthing=0,single=False,**kargs): # Single PLLD test in the number of iterations
-            # Depthing 0: Hardbrake (Res + Pres))
-            # Depthing 1: HardBrake Pres
+        @staticmethod #detectMode with different flows
+        def flowReferencing(tip=20,flow=10,detectMode=0,single=False,**kargs): # Single PLLD test in the number of iterations
+            # detectMode 0: Hardbrake (Res + Pres))
+            # detectMode 1: HardBrake Pres
             if single:
                 anchorFlow = c.PLLDConfig.flow[tip]
                 c.PLLDConfig.flow[tip] = flow
                 zref = lld.findSurface(target, lowSpeed=True, tip=tip); time.sleep(0.5)
                 c.move_rel_z(5,100,200)
                 wawik(1,'D10',target+30)
-                zdet = lld.findSurface(target,depthing=depthing, tip=tip); time.sleep(0.5)
+                zdet = lld.findSurface(target,detectMode=detectMode, tip=tip); time.sleep(0.5)
                 depth = zref - zdet
                 print('PLLD FLOW', c.PLLDConfig.flow[tip])
                 c.PLLDConfig.flow[tip] = anchorFlow
@@ -1957,10 +1957,10 @@ class mainLLD():
                     c.clear_estop()
                     c.move_abs_z(target+30,100,200)
                     for flow in refs:
-                        zref, zdet, depth = lld.test.flowReferencing(tip,flow,depthing,True)
+                        zref, zdet, depth = lld.test.flowReferencing(tip,flow,detectMode,True)
                         datas.append([flow, zref, zdet, round(depth,2)])
                         printy('ITER NO:',it,'| FLOW:',flow)
-                filename = 'Level/{}_{}xFlowReferencingMode{}_{}.csv'.format(tip,iters,depthing,int(time.time()))
+                filename = 'Level/{}_{}xFlowReferencingMode{}_{}.csv'.format(tip,iters,detectMode,int(time.time()))
                 df = pd.DataFrame(datas,columns=['Flow','Z Ref','Z PLLD','Depth'])
                 df.to_csv(filename, index=False)
                 printg('DONE!')
@@ -2073,7 +2073,7 @@ class mainLLD():
                 zref = lld.findSurface(-110,lowSpeed=True, tip=tip)
                 c.move_abs_z(0,100,1000)
                 wawik(1,'D7',0)
-                zdet = lld.findSurface(-110,depthing=1, tip=tip)
+                zdet = lld.findSurface(-110,detectMode=1, tip=tip)
                 c.move_abs_z(0,100,1000)
                 wawik(1,'D7',0)
                 speedMode('m')
@@ -2130,7 +2130,7 @@ class mainLLD():
                     c.move_abs_z(0,200,300)         
                     wawik(1,source,0)
                     c.move_abs_z(0,200,300)
-                    zdet = lld.findSurface(target,depthing=1, tip=tip)
+                    zdet = lld.findSurface(target,detectMode=1, tip=tip)
                     wawik(0,pickpos,pick_target+15)
                     c.move_abs_z(pick_target+15,200,500)
                     datas.append([c.PLLDConfig.flow[tip], c.PLLDConfig.pressThres[tip], c.PLLDConfig.useDynamic, zref, zdet, zref-zdet])
@@ -2151,8 +2151,8 @@ LLD = mainLLD.Operation('LLD')
 LLD.zero = -90
 LLD.res = 3100
 LLD.p2 = 936
-Dry = mainLLD.Operation('DRY')
-Wet = mainLLD.Operation('WET')
+Dry = mainLLD.Operation('PLLD')
+Wet = mainLLD.Operation('WLLD')
 Wet.resThres = c.WLLDConfig.resThres
 Wet.lld_freq = c.WLLDConfig.freq
 Wet.useDynamic = False
@@ -2236,18 +2236,16 @@ class mainLLT():
     resNoise = 0
 
     @staticmethod
-    def run(tip=20,operation='asp'):
-        if not c.p.get_liquid_tracker_run():
-            noise = [c.sensing.res() for i in range(c.DLLTConfig.sampleSize)]
-            mainLLT.resNoise = max(noise) - min(noise)
-            mainLLT.findThreshold(operation=operation)
+    def run(tip=20,operation='asp'):        
+        llt.terminate()
+        if mainLLT.findThreshold(operation=operation):
             if str.lower(operation) == 'asp':
                 if mainLLT.r2asp > mainLLT.r1:
                     printg('**Geometric LLT Mode**')
                     mainLLT.threshold = 0.0
                     mainLLT.Geo.init(operation=operation)
                     mainLLT.Geo.start()
-                elif abs(mainLLT.r2asp - mainLLT.r1) < c.PrereadingConfig.dlltMinAspThres:
+                elif mainLLT.resNoise < abs(mainLLT.r2asp - mainLLT.r1) < c.PrereadingConfig.dlltMinAspThres:
                     printg('**Geometric LLT Mode**')
                     mainLLT.Geo.init(operation=operation)
                     mainLLT.Geo.start()
@@ -2271,13 +2269,8 @@ class mainLLT():
                     mainLLT.Geo.init(operation=operation)
                     mainLLT.Geo.start()
             llt.check()
-            mainLLT.r1 = 0
-            mainLLT.r2asp = 0
-            mainLLT.r2dsp = 0
-            mainLLT.r2diff = 0
-            mainLLT.threshold = 0
         else:
-            printr('DLLT ALREADY RUNNING!')
+            printr("LLT FAILED")
 
     @staticmethod
     def terminate(postMove=False):
@@ -2338,7 +2331,7 @@ class mainLLT():
 
     @staticmethod
     def preReading(move=0):
-        if c.p.get_AD9833_Frequency() != c.PrereadingConfig.freq:
+        if c.p.get_AD9833_Frequency() != c.PrereadingConfig.freq: 
             c.set_freq(c.PrereadingConfig.freq, c.PrereadingConfig.freq_delay)
         c.move_rel_z(move,c.PrereadingConfig.stem_vel, c.PrereadingConfig.stem_acc)
         time.sleep(c.PrereadingConfig.readDelay)
@@ -2347,27 +2340,23 @@ class mainLLT():
         return res, z
 
     @staticmethod
-    def findThreshold(operation='asp',find=False):
+    def findThreshold(operation='asp'):
         printb('Finding LLT Threshold..')
-        if find:
-            mainLLT.r1,_ = mainLLT.preReading()
-            r2,_ = mainLLT.preReading(-c.PrereadingConfig.stepDown)
-            print('r2 :',r2,'| r1:', mainLLT.r1)
-            mainLLT.threshold = (r2 - mainLLT.r1)*c.PrereadingConfig.thresMultiplier
-            if   str.lower(operation) == 'asp': mainLLT.r2asp = r2
-            elif str.lower(operation) == 'dsp': mainLLT.r2dsp = r2
-            print('r1: {} | r2: {} | Thres: {}'.format(mainLLT.r1, r2, mainLLT.threshold))
-            if abs(mainLLT.r1 - r2) <= mainLLT.resNoise:
-                return False
-            else:
-                return True
+        c.set_freq(c.PrereadingConfig.freq, c.PrereadingConfig.freq_delay)
+        noise = [c.sensing.res() for i in range(c.DLLTConfig.sampleSize)]
+        mainLLT.resNoise = max(noise) - min(noise)
+        mainLLT.r1,_ = mainLLT.preReading()
+        r2,_ = mainLLT.preReading(-c.PrereadingConfig.stepDown)
+        print('r2 :',r2,'| r1:', mainLLT.r1)
+        mainLLT.threshold = (r2 - mainLLT.r1)*c.PrereadingConfig.thresMultiplier
+        if   str.lower(operation) == 'asp': mainLLT.r2asp = r2
+        elif str.lower(operation) == 'dsp': mainLLT.r2dsp = r2
+        print('r1: {} | r2: {} | Thres: {}'.format(mainLLT.r1, r2, mainLLT.threshold))
+        if abs(mainLLT.r1 - r2) <= mainLLT.resNoise:
+            return False
         else:
-            if not LLD.surfaceFound and not llt.findThreshold(operation=operation,find=True):
-                LLD.reset()
-                c.move_abs_z(-100,100,200)
-                LLD.zero = mainLLD.findSurface(-190,lld='wet')
-                llt.findThreshold(operation=operation,find=True)
-            
+            return True
+
     @staticmethod
     def similarityCheck():
         try:
@@ -2400,21 +2389,23 @@ class mainLLT():
     def test_setUp(tip, volume,iters=1):
         printy("LLT Pipetting Test Started..")
         vol = volume
-        mainLLT.testStat = True
+        lld.findSurface(-190)
+        mainLLT.run(tip=tip,operation='asp')
+        #c.start_flow(100,1)
         for i in range(iters):
-            c.start_flow(100,1)
-            mainLLT.run(tip=tip,operation='asp')
+            mainLLT.testStat = True
+            time.sleep(1)
             aspirate(vol*0.95, tip)
             time.sleep(2)
-            mainLLT.terminate(postMove=True)
-            mainLLT.run(tip=tip, operation='dsp')
+            #mainLLT.terminate(postMove=True)
+            #mainLLT.run(tip=tip, operation='dsp')
             dispense(vol*1.1, tip)
-            time.sleep(2)
-            mainLLT.terminate(postMove=True)
-        time.sleep(2)
+            time.sleep(0.5)
+            cplotter.terminate()
+        mainLLT.terminate(postMove=True)
+        #time.sleep(2)
         #mainLLT.terminate(postMove=True)
-        c.move_rel_z(30,100,200)
-        cplotter.terminate()
+        c.move_rel_z(10,100,200)
         mainLLT.testStat = False
         printy("LLT Pipetting Test Finished..")
 

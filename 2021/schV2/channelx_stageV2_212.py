@@ -2679,7 +2679,7 @@ class WLLDConfig():
 	colThres = 40
 	currentThresh = 1.3
 	resThres = 50
-	freq = 100
+	freq = 510
 	freq_delay = 250/1000.0
 
 class PrereadingConfig():
@@ -2696,7 +2696,7 @@ class PrereadingConfig():
 	dlltMaxThres = 700
 
 class DLLTConfig(): # ================== THIS IS V2 CONFIG
-	sampleSize = 100
+	sampleSize = 25
 	class Res:
 		stepSize = 2.5
 		bigStep = 10
@@ -2726,7 +2726,7 @@ class chipCalibrationConfig():
 	lowerLimit = -200.0
 	colCompressTolerance = 4.0
 
-def setUp_plld(tip=20, lowSpeed=False, depthing=1):
+def setUp_plld(tip=20, lowSpeed=False, detectMode=1):
 	printg(f'Setting Up PLLD for P{tip} | Flow: {PLLDConfig.flow[tip]} | Pthres: {PLLDConfig.pressThres[tip]}')
 	p.set_valve_open_response_ms(PipettingConfig.NonPipettingResponseMS)
 	p.start_regulator_mode(2,PLLDConfig.flow[tip],1,0,0)
@@ -2766,11 +2766,11 @@ def setUp_plld(tip=20, lowSpeed=False, depthing=1):
 		p.set_abort_config(AbortID.VALVECLOSE,False, pressure+collision1+collision2+wlld, collision1+wlld)
 		p.set_abort_config(AbortID.MOTORHARDBRAKE,False, pressure+collision1+collision2+wlld, collision1+wlld)
 	else: # normal PLLD
-		if depthing == 0: # V1 PLLD = HARDBRAKE RESISTANCE+PRESSSURE
+		if detectMode == 0: # V1 PLLD = HARDBRAKE RESISTANCE+PRESSSURE
 			p.set_abort_config(AbortID.MOTORHARDBRAKE,False, pressure+collision1+collision2+wlld, collision1)
 			p.set_abort_config(AbortID.VALVECLOSE,False, pressure+collision1+collision2+wlld, collision1)
-		elif depthing == 1: # V2 PLLD = HARDBRAKE PRESSURE
-			p.set_abort_config(AbortID.MOTORHARDBRAKE,False,pressure+collision1+collision2, collision1) #for depthing
+		elif detectMode == 1: # V2 PLLD = HARDBRAKE PRESSURE
+			p.set_abort_config(AbortID.MOTORHARDBRAKE,False,pressure+collision1+collision2, collision1) #for detectMode
 			p.set_abort_config(AbortID.VALVECLOSE,False, pressure+collision1+collision2, collision1)
 	sensorCatcher1 = PostTrigger('s1')
 	sensorCatcher1.start()
@@ -2889,6 +2889,13 @@ def check_triggered_input(abort=None):
 def get_triggered_input(ids):
 	return p.get_triggered_inputs(ids)
 
+def get_sensor_lpf_cutoff(*ids):
+	if ids:
+		p.get_sensor_lpf_cutoff(ids[0])
+	else:
+		sens = ['RESISTANCE','COLLISION','NTC_TEMP1','NTC_TEMP2','TEMP_P1','TEMP_P2','PRESSURE_P1','PRESSURE_P2','BREACH_CAPC']
+		for i,s in enumerate(sens):
+			print(s,'\t',p.get_sensor_lpf_cutoff(i)['cut_off_hz'])
 
 class ReadSensor():
 	def __init__(self): pass

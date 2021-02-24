@@ -2707,7 +2707,7 @@ class DLLTConfig(): # ================== THIS IS V2 CONFIG
 		stem_vel = {20: 10, 200: 10, 1000:10}
 		stem_acc = {20: 20, 200: 20, 1000:20}
 		colThres = 40
-		samplingTime = 1
+		pidPeriod = 1
 
 	class Geo:
 		trackFactor = 6.36

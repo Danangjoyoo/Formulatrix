@@ -2211,7 +2211,7 @@ class mainLLT():
                 abs(mainLLT.threshold),
                 c.DLLTConfig.Res.stepSize,
                 c.DLLTConfig.Res.bigStep,
-                c.DLLTConfig.Res.samplingTime)
+                c.DLLTConfig.Res.pidPeriod) 
             print(mainLLT.threshold)
             c.p.start_liquid_tracker(0)
 
@@ -2389,7 +2389,7 @@ class mainLLT():
     def test_setUp(tip, volume,iters=1):
         printy("LLT Pipetting Test Started..")
         vol = volume
-        lld.findSurface(-190)
+        lld.findSurface(-190,tip=tip)
         mainLLT.run(tip=tip,operation='asp')
         #c.start_flow(100,1)
         for i in range(iters):

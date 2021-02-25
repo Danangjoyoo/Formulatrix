@@ -1,4 +1,4 @@
-### Script Version : v2021.2.25.1614236493
+### Script Version : v2021.2.25.1614249230
 from misc import *
 import FloDeck_stageV2_212 as deck
 import pregx as pr
@@ -10,6 +10,8 @@ from pandas import read_csv
 import threading, winsound, os, sys, signal
 import keyboard as kb, string, numpy as np, colorama as cora, random as rd
 import matplotlib.pyplot as plt
+import seaborn as sns
+from tkinter import filedialog as fd
 
 w_eng_value = 4.5454545454
 B_zero = 702.4545+9*w_eng_value
@@ -1047,6 +1049,7 @@ def yoyo(): #temporary for debugging dpc
 # IMPROVEMENTS ######################### IMPROVEMENTS ################################ IMPROVEMENTS ################################################## IMPROVEMENTS ############################
 ################### IMPROVEMENTS ################################ IMPROVEMENTS ################################################## IMPROVEMENTS #################################################
 
+
 # DECKS
 A1,A2,A3,A4,A5,A6,A7,A8,A9,A10,A11,A12 = [A for A in deck.wellname[0:12]]
 B1,B2,B3,B4,B5,B6,B7,B8,B9,B10,B11,B12 = [B for B in deck.wellname[12:24]]
@@ -1092,6 +1095,9 @@ def setVelAcc_z_mode(mode):
     elif mode == 'f':
         vel_z = 150; acc_z = 1000
 speedMode('m')
+
+#Check Script Version
+scloud.version()
 
 def manualStem():
     c.clear_motor_fault()
@@ -2445,6 +2451,73 @@ class mainLLT():
             return mainLLT.test_setUp(tip, volume, iters, log=True)
 
 llt = mainLLT
+
+class DPC():
+    dripTime = 0
+    counter = None
+    runStat = False
+
+    @staticmethod
+    def on(): c.dpc_on()
+
+    @staticmethod
+    def off(): c.dpc_off()
+
+    @staticmethod
+    def test(tip=200,vol=200,dur=180):
+        DPC.runStat = True
+        lld.findSurface(-170,tip=tip)
+        c.start_logger(sensorm=2608)
+        aspirate(vol)
+        c.dpc_on()
+        c.move_rel_z(50,15,1000)
+        t0 = time.perf_counter()
+        now = time.perf_counter()
+        DPC.__dripTimeCather()
+        while now-t0 < dur:
+            now = time.perf_counter()
+            DPC.counter = now - t0
+            printy(' elapsed: {}s end in {}s\t'.format(int(DPC.counter), dur), end='\r')
+            #print('DPC Test end in: {}:{} '.format(2-int((DPC.now-t0)/60), 60-int((DPC.now-t0)%60)), end='\r')
+        winsound.Beep(1300,1000)
+        lld.findSurface(-170,lld='wet',tip=tip)
+        c.dpc_off()
+        dispense(vol*1.2)
+        DPC.runStat = False
+        c.stop_logger()
+        c.move_rel_z(50,100,100)
+        printy(f'Drip/Up at {DPC.dripTime}s') if DPC.dripTime else printy('No drip!')
+        DPC.readLog(c.file_name)
+
+
+    @staticmethod
+    def __dripTimeCather():        
+        def keyEvent():
+            while not kb.is_pressed('ESC') or DPC.runStat: pass
+            if DPC.runStat: DPC.dripTime = DPC.counter
+        DPC.dripTime = 0
+        t = threading.Thread(target=keyEvent)
+        t.start()
+
+    @staticmethod
+    def readLog(filename=None):
+        if not filename: filename = fd.askopenfilename(initialdir=os.getcwd())
+        df = pd.read_csv(filename)
+        tick = [int(i) for i in df['Tick'][:len(df)-2]]
+        p1 = [float(i) for i in df['Pressure_P1'][:len(df)-2]]
+        p2 = [float(i) for i in df['Pressure_P2'][:len(df)-2]]
+        valve =  df['Valve_in_open'][:len(df)-2]
+        control = df['Preg_control_out'][:len(df)-2]
+        sns.set()
+        plt.plot(tick,p1,label='P1')
+        plt.plot(tick,p2,label='P2')
+        plt.plot(tick,valve,label='valve')
+        plt.plot(tick,control,label='control')
+        plt.legend(loc='upper left')
+        plt.tight_layout()
+        plt.show()
+
+dpc = DPC
 
 # NOTIFICATION & ALERT
 class avoidInpErr():

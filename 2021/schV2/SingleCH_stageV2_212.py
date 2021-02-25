@@ -1,4 +1,4 @@
-### Script Version : v2021.2.24.1614158762
+### Script Version : v2021.2.25.1614236493
 from misc import *
 import FloDeck_stageV2_212 as deck
 import pregx as pr
@@ -1537,7 +1537,7 @@ class mainLLD():
             self.saturated = False
 
     @staticmethod
-    def findSurface(depth=-180,lld='dry',tip=20,lowSpeed=False,detectMode=1):
+    def findSurface(depth=-180,lld='dry',tip=20,lowSpeed=False,detectMode=0):
         LLD.reset()
         print(('FindSurface Started.. lld: {} | lowSpeed: {} | depth: {}'.format(lld, lowSpeed, depth)))
         # MAIN FINDSURFACE====================        
@@ -1545,13 +1545,14 @@ class mainLLD():
         c.clear_motor_fault()
         c.clear_abort_config()
         anchorFlow = c.PLLDConfig.flow[tip]
-        if lowSpeed:
+        if lowSpeed: # ADD-ON
             c.PLLDConfig.flow[tip] = LLD.lowSpeed_flow
             stem_vel = 2
             stem_acc = 5
         else:
             stem_vel = c.PLLDConfig.stem_vel
             stem_acc = c.PLLDConfig.stem_acc
+
         # Algorithms Start Here
         depth -= c.chipCalibrationConfig.colCompressTolerance
         if str.lower(lld) == 'dry':
@@ -1560,28 +1561,48 @@ class mainLLD():
         elif str.lower(lld) == 'wet':
             Wet.reset()
             Wet.resLimit = c.setUp_wlld()
+
+        # ADD-ON FINDSURFACE ~~~~~~~~ Not The Core Algorithm, just some add-on
         init_res = c.sensing.res()
-        # ADD-ON FINDSURFACE====================
         print('move', c.get_motor_pos())
         proc = c.PostTrigger.proc #for sensor read catcher
-        c.move_abs_z(depth,stem_vel,stem_acc) # max move but will stop when plld triggered"
+        c.move_abs_z(depth,stem_vel,stem_acc) # max move but will stop when plld triggered"        
         while int(round(c.get_motor_pos(),0)) != int(round(depth,0)): 
             if proc != c.PostTrigger.proc: break
         if str.lower(lld) == 'dry':
-            if 'RESISTANCE' in c.PostTrigger.trigger:
-                Dry.res_trig = True                
-            elif 'PRESSURE2' in c.PostTrigger.trigger:
-                Dry.press_trig = True
-            Dry.HardZ_trig = c.PostTrigger.trigger
-            LLD.HardZ_trig = c.PostTrigger.trigger
+            if not lowSpeed:
+                if c.get_triggered_input(c.AbortID.MOTORDECEL) == 1 << c.InputAbort.PRESS2:
+                    Dry.press_trig = True
+                elif c.get_triggered_input(c.AbortID.MOTORDECEL) == 1 << c.InputAbort.RESISTANCE:
+                    Dry.res_trig = True
+                if c.get_triggered_input(c.AbortID.MOTORHARDBRAKE) == 1 << c.InputAbort.RESISTANCE:
+                    Dry.res_trig = True
+                elif c.get_triggered_input(c.AbortID.MOTORHARDBRAKE) == 1 << c.InputAbort.PRESS2:
+                    Dry.press_trig = True
+                Dry.NormalZ_trig = c.check_triggered_input(c.AbortID.MOTORDECEL)
+                Dry.HardZ_trig = c.check_triggered_input(c.AbortID.MOTORHARDBRAKE)
+            else:
+                if c.get_triggered_input(c.AbortID.MOTORHARDBRAKE) == 1 << c.InputAbort.PressureSensor2:
+                    Dry.press_trig = True
+                elif c.get_triggered_input(c.AbortID.MOTORHARDBRAKE) == 1 << c.InputAbort.RESISTANCE:
+                    Dry.res_trig = True
+                Dry.HardZ_trig = c.check_triggered_input(c.AbortID.MOTORHARDBRAKE)
+            LLD.NormalZ_trig = Dry.NormalZ_trig
+            LLD.HardZ_trig = Dry.HardZ_trig
         elif str.lower(lld) == 'wet':
-            if 'RESISTANCE' in c.PostTrigger.trigger:
+            if c.get_triggered_input(c.AbortID.MOTORHARDBRAKE) == 1 << c.InputAbort.RESISTANCE:
                 Wet.res_trig = True
-            Wet.HardZ_trig = c.PostTrigger.trigger
+            Wet.HardZ_trig = c.check_triggered_input(c.AbortID.MOTORHARDBRAKE)           
             LLD.HardZ_trig = Wet.HardZ_trig
-        printr('Trigger check-> HardZ: {}'.format(LLD.HardZ_trig))
-        print('done move',  c.get_motor_pos())
-        # MAIN FINDSURFACE====================
+        c.PostTrigger.terminateAll()
+        time.sleep(0.1)
+        printr('Trigger check: NormalZ: {} | HardZ: {}'.format(LLD.NormalZ_trig, LLD.HardZ_trig))
+        print('Checking surfaceFound..')
+        print('pressureCheck..\t limit: {}\t | postpress: {}'.format(Dry.pressLimit, c.PostTrigger.press))
+        print('resCheck..\t limit: {}\t | postRes: {}'.format(init_res - c.PLLDConfig.resThres, c.PostTrigger.res))
+        # END OF ADD-ON ~~~~~~~~
+
+        # POST FINDSURFACE====================
         # after the motor stopped, set every process done
         c.abort_flow()
         c.Average_done = True
@@ -1592,25 +1613,25 @@ class mainLLD():
         # clear all abort
         print('press-res trig:',Dry.press_trig, Dry.res_trig)
         pos =  c.get_motor_pos()
+        c.clear_estop()
         c.clear_motor_fault()
-        c.clear_abort_config(c.AbortID.MOTORHARDBRAKE)
-        c.clear_abort_config(c.AbortID.VALVECLOSE)
+        c.clear_abort_config()
         zero = c.get_motor_pos()
-        # ADD-ON FINDSURFACE====================
-        print('Checking surfaceFound..')
-        print('pressureCheck..\t limit: {}\t | postpress: {}'.format(Dry.pressLimit, c.PostTrigger.press))
-        print('resCheck..\t limit: {}\t | postRes: {}'.format(init_res - c.PLLDConfig.resThres, c.PostTrigger.res))
+        # END OF CORE ===========
+
+        # ADD-ON FINDSURFACE ~~~~~~~~ Not The Core Algorithm, just some add-on
         if str.lower(lld) == 'dry':
             if Dry.press_trig:
                 LLD.surfaceFound = True
                 Dry.surfaceFound = True
                 printy('Surface found at Dry (PLLD)')
             else:
-                printy("Pressure Limit isn't reached at Dry (PLLD failed)")
+                printy("Pressure Limit isn't reached at Dry")
             if Dry.res_trig:
                 LLD.surfaceFound = True
                 Dry.surfaceFound = True
                 printy('Resistance Triggered at Dry (PLLD)')
+            if not LLD.surfaceFound: printr('PLLD Failed')
         elif str.lower(lld) == 'wet':
             if Wet.res_trig:
                 LLD.surfaceFound = True
@@ -1619,7 +1640,7 @@ class mainLLD():
             else:
                 printy("Resistance Limit isn't reached at Wet (WLLD failed)")
         if lowSpeed: c.PLLDConfig.flow[tip] = anchorFlow
-        c.PostTrigger.terminateAll()
+        # END OF ADD-ON ~~~~~~~~
         return zero
 
     # LLD TEST / TIP RECIPROCATING
@@ -1709,14 +1730,14 @@ class mainLLD():
                     LLD.reset()
                     t_tot1 = time.time()
                     c.tare_pressure(); atm_press = c.ATM_pressure
+                    p1_init = np.average([c.sensing.p1() for i in range(10)])
+                    res_init = np.average([c.sensing.res() for i in range(10)])
                     dates = time.strftime('%Y/%m/%d %H:%M:%S', time.localtime(time.time()))
                     picktipstat = picktip(next_pickpos, tip=tip)
                     pickpos         = next_pickpos
                     next_pickpos    = picktipstat[1]
                     ejectpos        = picktipstat[2]
                     if picktipstat[0]:
-                        p1_init = c.sensing.p1()
-                        res_init = c.sensing.res()
                         printg('Finding Zero Surface...')
                         print('initRes:',res_init,'| p1_init:',p1_init,'| p2_init:',atm_press)
                         align(1,source,target+15,safe)

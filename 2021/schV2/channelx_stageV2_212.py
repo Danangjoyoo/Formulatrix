@@ -1050,7 +1050,7 @@ def dpc_on():
 	p_dpc = AverageP2
 	p.start_regulator_mode(1,p_dpc,2,1,10)
 
-	print(("DPC ON at P2 = {}".format(p_dpc)))
+	print("DPC ON at P2 = {}".format(p_dpc))
 
 def dpc_off():
 	p.abort_flow_func()
@@ -2671,7 +2671,9 @@ class PLLDConfig():
 	useDynamic = True
 	pAvgSample = 1000
 	stripGap = 0.4
-	decel = (stem_vel**2)/(2*stripGap)
+	#stopDecel = 16384.0
+	#jerk = 65535.0
+	abortDecel = ((stem_vel*stem_eng)**2)/(2*(stripGap*stem_eng))
 
 class WLLDConfig():
 	stem_vel = 15
@@ -2726,8 +2728,9 @@ class chipCalibrationConfig():
 	lowerLimit = -200.0
 	colCompressTolerance = 4.0
 
-def setUp_plld(tip=20, lowSpeed=False, detectMode=1):
+def setUp_plld(tip=20, lowSpeed=False, detectMode=0):
 	printg(f'Setting Up PLLD for P{tip} | Flow: {PLLDConfig.flow[tip]} | Pthres: {PLLDConfig.pressThres[tip]}')
+	p.select_flow_sensor(0)
 	p.set_valve_open_response_ms(PipettingConfig.NonPipettingResponseMS)
 	p.start_regulator_mode(2,PLLDConfig.flow[tip],1,0,0)
 	p.set_AD9833_Frequency(PLLDConfig.freq)
@@ -2748,11 +2751,15 @@ def setUp_plld(tip=20, lowSpeed=False, detectMode=1):
 	else:
 		pressThres = PLLDConfig.pressThres[tip]
 	p_ref += pressThres
-	print('Dynamic:',PLLDConfig.useDynamic,'| pressThres:',pressThres,'| resThres:',sensing.res()-PLLDConfig.resThres)
+	print('Dynamic:   ',PLLDConfig.useDynamic,'| pressThres: ',pressThres)
+	print('pressLimit:', p_ref,'| resLimit:',sensing.res()-PLLDConfig.resThres)
 	# Clear All Abort
-	clear_motor_fault()
 	clear_estop()
+	clear_motor_fault()
 	clear_abort_config()
+	stopDecel = p.get_motor_deceleration(0)['stop_decel']
+	jerk = p.get_motor_deceleration(0)['stop_abort_jerk']
+	p.set_motor_deceleration(0, stopDecel, PLLDConfig.abortDecel, jerk)
 	# Set Abort PLLD
 	p.set_abort_threshold(InputAbort.COLLISION1,sensing.col()-PLLDConfig.colThres)
 	p.set_abort_threshold(InputAbort.COLLISION2,sensing.col()+PLLDConfig.colThres)
@@ -2766,12 +2773,16 @@ def setUp_plld(tip=20, lowSpeed=False, detectMode=1):
 		p.set_abort_config(AbortID.VALVECLOSE,False, pressure+collision1+collision2+wlld, collision1+wlld)
 		p.set_abort_config(AbortID.MOTORHARDBRAKE,False, pressure+collision1+collision2+wlld, collision1+wlld)
 	else: # normal PLLD
-		if detectMode == 0: # V1 PLLD = HARDBRAKE RESISTANCE+PRESSSURE
-			p.set_abort_config(AbortID.MOTORHARDBRAKE,False, pressure+collision1+collision2+wlld, collision1)
-			p.set_abort_config(AbortID.VALVECLOSE,False, pressure+collision1+collision2+wlld, collision1)
+		if detectMode == 0: # V2 PLLD = NORMALBRAKE PRESSURE + HARDBRAKE RESISTANCE
+			p.set_abort_config(AbortID.MOTORDECEL,False,pressure, 0)
+			p.set_abort_config(AbortID.MOTORHARDBRAKE,False, collision1+collision2+wlld, collision1+wlld)
+			p.set_abort_config(AbortID.VALVECLOSE,False, pressure+collision1+collision2+wlld, collision1+wlld)
 		elif detectMode == 1: # V2 PLLD = HARDBRAKE PRESSURE
-			p.set_abort_config(AbortID.MOTORHARDBRAKE,False,pressure+collision1+collision2, collision1) #for detectMode
-			p.set_abort_config(AbortID.VALVECLOSE,False, pressure+collision1+collision2, collision1)
+			p.set_abort_config(AbortID.MOTORHARDBRAKE,False,pressure+collision1+collision2, collision1+wlld) #for detectMode
+			p.set_abort_config(AbortID.VALVECLOSE,False, pressure+collision1+collision2, collision1+wlld)
+		elif detectMode == 2: # V2 PLLD = HARDBRAKE RESISTANCE+PRESSSURE
+			p.set_abort_config(AbortID.MOTORHARDBRAKE,False, pressure+collision1+collision2+wlld, collision1+wlld)
+			p.set_abort_config(AbortID.VALVECLOSE,False, pressure+collision1+collision2+wlld, collision1+wlld)
 	sensorCatcher1 = PostTrigger('s1')
 	sensorCatcher1.start()
 	printg('PLLD has been set..')
@@ -2801,14 +2812,12 @@ def setUp_wlld():
 
 class PostTrigger(threading.Thread):
 	proc = 0
-	trigger = 'None'
 	press = None
 	res = None
 	def __init__(self,name):
 		threading.Thread.__init__(self)
 		self.name = name
 		self.postPress = None
-		self.trigger = 'None'
 		self.postRes = None
 		self.checkStat = False
 
@@ -2826,12 +2835,10 @@ class PostTrigger(threading.Thread):
 		PostTrigger.press = None
 		PostTrigger.res = None
 		while self.checkStat:
-			if p.get_triggered_inputs(AbortID.MOTORHARDBRAKE):
-				self.trigger = check_triggered_input(AbortID.MOTORHARDBRAKE)								
-				self.postPress = sensing.p2()
-				self.postRes = sensing.res()
-				self.checkStat = False
+			if p.get_triggered_inputs(AbortID.MOTORHARDBRAKE) or p.get_triggered_inputs(AbortID.MOTORDECEL):								
 				break
+		self.postPress = sensing.p2()
+		self.postRes = sensing.res()
 
 	def terminate(self):
 		self.checkStat = False
@@ -2870,9 +2877,8 @@ def check_triggered_input(abort=None):
 			1<<12: 'PRESSURE2'}
 		newPack = {}
 		newPack = combineDict(inputPack, inputPack)
-		#for i in newPack.keys(): print(i, newPack[i])
 		if get_triggered_input(abort) in newPack: return newPack[get_triggered_input(abort)]
-	if abort:
+	if abort or abort == 0:
 		triger = getInput(abort)
 		return triger
 	else:

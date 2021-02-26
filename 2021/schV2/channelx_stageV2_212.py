@@ -1051,9 +1051,11 @@ def dpc_on():
 	time.sleep(0.2)
 	average_pressure(100)
 	p_dpc = AverageP2
-	p.start_regulator_mode(1,p_dpc,2,1,10)
+	vol_limit = 5
+	p.start_regulator_mode(1,p_dpc,2,1,vol_limit)
 
 	print("DPC ON at P2 = {}".format(p_dpc))
+	return p_dpc
 
 def dpc_off():
 	p.abort_flow_func()
@@ -1721,7 +1723,7 @@ def set_mini2():
 					p.set_prop_valve_range(i,set,max_out) 	#push value, double cek
 					p.set_prop_valve_range(i,set,max_out)
 					print("Value set for id = ", i , set)
-					readConfig(p.get_prop_valve_range(i))
+					readConfig(p.get_prop_valve_range,i)
 					time.sleep(1)
 					p.save_configuration() #save
 					abort_flow()

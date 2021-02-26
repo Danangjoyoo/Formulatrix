@@ -1,4 +1,4 @@
-### Script Version : v2021.2.26.1614309074
+### Script Version : v2021.2.26.1614333571
 from misc import *
 import FloDeck_stageV2_212 as deck
 import pregx as pr
@@ -11,6 +11,7 @@ import threading, winsound, os, sys, signal
 import keyboard as kb, string, numpy as np, colorama as cora, random as rd
 import matplotlib.pyplot as plt
 import seaborn as sns
+import tkinter as tk
 from tkinter import filedialog as fd
 
 w_eng_value = 4.5454545454
@@ -2460,12 +2461,14 @@ class DPC():
     def off(): c.dpc_off()
 
     @staticmethod
-    def test(tip=200,vol=200,dur=180):
+    def test(tip=200,vol=200,dur=180,dpcOn=True):
         DPC.runStat = True
+        tare()
         lld.findSurface(-170,tip=tip)
-        c.start_logger(sensorm=2608)
+        c.start_logger(sensorm=2608,openui=False)
         aspirate(vol)
-        c.dpc_on()
+        if dpcOn: c.dpc_on()
+        pref = c.AverageP2
         c.move_rel_z(50,15,1000)
         t0 = time.perf_counter()
         now = time.perf_counter()
@@ -2477,14 +2480,14 @@ class DPC():
             #print('DPC Test end in: {}:{} '.format(2-int((DPC.now-t0)/60), 60-int((DPC.now-t0)%60)), end='\r')
         winsound.Beep(1300,1000)
         lld.findSurface(-170,lld='wet',tip=tip)
-        c.dpc_off()
+        if dpcOn: c.dpc_off()
         dispense(vol*1.2)
-        DPC.runStat = False
         c.stop_logger()
+        DPC.runStat = False
         c.move_rel_z(50,100,100)
         printy(f'Drip/Up at {DPC.dripTime}s') if DPC.dripTime else printy('No drip!')
-        DPC.readLog(c.file_name)
-
+        time.sleep(1)
+        DPC.readLog(c.file_name, pref)
 
     @staticmethod
     def __dripTimeCather():        
@@ -2496,21 +2499,55 @@ class DPC():
         t.start()
 
     @staticmethod
-    def readLog(filename=None):
-        if not filename: filename = fd.askopenfilename(initialdir=os.getcwd())
+    def readLog(filename=None,pref=None):
+        if not filename:
+            root = tk.Tk()
+            filename = fd.askopenfilename(initialdir=os.getcwd()+"/FirmwareLog")
+            root.destroy()
         df = pd.read_csv(filename)
+
+        # main chart
         tick = [int(i) for i in df['Tick'][:len(df)-2]]
         p1 = [float(i) for i in df['Pressure_P1'][:len(df)-2]]
-        p2 = [float(i) for i in df['Pressure_P2'][:len(df)-2]]
+        p2 = [float(i) for i in df['Pressure_P2'][:len(df)-2]]        
         valve =  df['Valve_in_open'][:len(df)-2]
-        #control = df['Preg_control_out'][:len(df)-2]
+        #control = df['Preg_control_out'][:len(df)-2]        
+
+        # main Plot
         sns.set()
-        plt.plot(tick,p1,label='P1')
-        plt.plot(tick,p2,label='P2')
-        plt.plot(tick,valve,label='valve')
-        #plt.plot(tick,control,label='control')
-        plt.legend(loc='upper left')
-        plt.tight_layout()
+        fig, (ax1, ax2) = plt.subplots(2, 1)
+        ax1.title.set_text('Aspirate+DPC+Dispense Chart')
+        ax1.plot(tick,p1,label='P1')
+        ax1.plot(tick,p2,label='P2')
+        ax1.plot(tick,valve,label='valve')
+        ax1.legend(loc='lower right')
+
+        # Deviation Check
+        dpcStart = [0, 0]
+        dpcEnd = [0, 0]
+        for i, val in enumerate(valve):
+            if val and dpcStart[0] == 0: dpcStart[0] += 1
+            if not val and dpcStart[0] == 1: dpcStart[0] += 1            
+            if val and dpcStart[0] == 2:
+                dpcStart[0] += 1
+                dpcStart[1] = i
+            if not val and dpcStart[0] == 3:
+                dpcStart[0] += 1
+                dpcEnd[1] = i
+        devtick = tick[dpcStart[1]:dpcEnd[1]]
+        devp1 = p1[dpcStart[1]:dpcEnd[1]]
+        devp2 = p2[dpcStart[1]:dpcEnd[1]]
+        print('aaaa', devp2[0])
+        if not pref: pref = devp2[0]
+        avgDevs = round(np.average([abs(pref-i) for i in devp2]),3)
+
+        # Deviation chart
+        ax2.title.set_text(f'DPC Chart | Avg Dev = {avgDevs} mbar')
+        ax2.plot(devtick, devp1, label='P1')
+        ax2.plot(devtick, devp2, label='P1')
+        pline = [pref]*len(devtick)
+        ax2.plot(devtick,pline, '--', label='DPC Press Ref')
+        ax2.legend(loc='lower right')
         plt.show()
 
 dpc = DPC

@@ -1,4 +1,4 @@
-### Script Version : v2021.2.25.1614249230
+### Script Version : v2021.2.26.1614309074
 from misc import *
 import FloDeck_stageV2_212 as deck
 import pregx as pr
@@ -1579,16 +1579,12 @@ class mainLLD():
             if not lowSpeed:
                 if c.get_triggered_input(c.AbortID.MOTORDECEL) == 1 << c.InputAbort.PRESS2:
                     Dry.press_trig = True
-                elif c.get_triggered_input(c.AbortID.MOTORDECEL) == 1 << c.InputAbort.RESISTANCE:
-                    Dry.res_trig = True
                 if c.get_triggered_input(c.AbortID.MOTORHARDBRAKE) == 1 << c.InputAbort.RESISTANCE:
                     Dry.res_trig = True
-                elif c.get_triggered_input(c.AbortID.MOTORHARDBRAKE) == 1 << c.InputAbort.PRESS2:
-                    Dry.press_trig = True
                 Dry.NormalZ_trig = c.check_triggered_input(c.AbortID.MOTORDECEL)
                 Dry.HardZ_trig = c.check_triggered_input(c.AbortID.MOTORHARDBRAKE)
             else:
-                if c.get_triggered_input(c.AbortID.MOTORHARDBRAKE) == 1 << c.InputAbort.PressureSensor2:
+                if c.get_triggered_input(c.AbortID.MOTORHARDBRAKE) == 1 << c.InputAbort.PRESS2:
                     Dry.press_trig = True
                 elif c.get_triggered_input(c.AbortID.MOTORHARDBRAKE) == 1 << c.InputAbort.RESISTANCE:
                     Dry.res_trig = True
@@ -2493,7 +2489,7 @@ class DPC():
     @staticmethod
     def __dripTimeCather():        
         def keyEvent():
-            while not kb.is_pressed('ESC') or DPC.runStat: pass
+            while not kb.is_pressed('ESC') and DPC.runStat: pass
             if DPC.runStat: DPC.dripTime = DPC.counter
         DPC.dripTime = 0
         t = threading.Thread(target=keyEvent)
@@ -2507,12 +2503,12 @@ class DPC():
         p1 = [float(i) for i in df['Pressure_P1'][:len(df)-2]]
         p2 = [float(i) for i in df['Pressure_P2'][:len(df)-2]]
         valve =  df['Valve_in_open'][:len(df)-2]
-        control = df['Preg_control_out'][:len(df)-2]
+        #control = df['Preg_control_out'][:len(df)-2]
         sns.set()
         plt.plot(tick,p1,label='P1')
         plt.plot(tick,p2,label='P2')
         plt.plot(tick,valve,label='valve')
-        plt.plot(tick,control,label='control')
+        #plt.plot(tick,control,label='control')
         plt.legend(loc='upper left')
         plt.tight_layout()
         plt.show()

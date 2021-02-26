@@ -687,6 +687,9 @@ def move_abs_z(abs,velc,acc,wait=1):
 	upper = pos+2
 	lower = pos-2
 	
+	if abs > chipCalibrationConfig.upperLimit: abs = chipCalibrationConfig.upperLimit
+	elif abs < chipCalibrationConfig.lowerLimit: abs = chipCalibrationConfig.lowerLimit
+
 	if lower<abs<upper:
 		move_done = True
 	p.move_motor_abs(0,abs*stem_eng,velc*stem_eng,acc*stem_eng,10000*stem_eng)
@@ -2724,7 +2727,7 @@ class PipettingConfig():
 	NonPipettingResponseMS = 60
 
 class chipCalibrationConfig():
-	upperLimit = 9.0
+	upperLimit = 5.0
 	lowerLimit = -200.0
 	colCompressTolerance = 4.0
 
@@ -2774,7 +2777,7 @@ def setUp_plld(tip=20, lowSpeed=False, detectMode=0):
 		p.set_abort_config(AbortID.MOTORHARDBRAKE,False, pressure+collision1+collision2+wlld, collision1+wlld)
 	else: # normal PLLD
 		if detectMode == 0: # V2 PLLD = NORMALBRAKE PRESSURE + HARDBRAKE RESISTANCE
-			p.set_abort_config(AbortID.MOTORDECEL,False,pressure, 0)
+			p.set_abort_config(AbortID.MOTORDECEL,False,collision1+collision2+pressure, collision1)
 			p.set_abort_config(AbortID.MOTORHARDBRAKE,False, collision1+collision2+wlld, collision1+wlld)
 			p.set_abort_config(AbortID.VALVECLOSE,False, pressure+collision1+collision2+wlld, collision1+wlld)
 		elif detectMode == 1: # V2 PLLD = HARDBRAKE PRESSURE

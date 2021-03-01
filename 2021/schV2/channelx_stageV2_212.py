@@ -290,7 +290,7 @@ def thread_logger(motorm=0,sensorm=16+32,openui=True,maxTick=None):
 
 # =========================================== EVENT =========================================================================================
 def motor_status():
-    print(decode_motor_status(p.get_motor_status))
+	print(decode_motor_status(p.get_motor_status))
 
 
 def decode_motor_status(motor_status):
@@ -999,24 +999,24 @@ def cek_p2_average():
 			
 			
 def minicek():
-    start_logger()
-    start_flow(-20)
-    time.sleep(0.5)
-    abort_flow()
-    start_flow(20)
-    time.sleep(0.5)
-    abort_flow()
-    aspirate(20,20)
-    dispense(20,20)
-    ready_to_flow()
-    p.set_prop_valve_out(0,0.67)
-    time.sleep(2)
-    abort_flow()
-    ready_to_flow()
-    p.set_prop_valve_out(1,0.67)
-    time.sleep(2)
-    abort_flow()
-    stop_logger()
+	start_logger()
+	start_flow(-20)
+	time.sleep(0.5)
+	abort_flow()
+	start_flow(20)
+	time.sleep(0.5)
+	abort_flow()
+	aspirate(20,20)
+	dispense(20,20)
+	ready_to_flow()
+	p.set_prop_valve_out(0,0.67)
+	time.sleep(2)
+	abort_flow()
+	ready_to_flow()
+	p.set_prop_valve_out(1,0.67)
+	time.sleep(2)
+	abort_flow()
+	stop_logger()
 
 
 def aspirate(vol,flow,flowmin=5,log=False,timeout=5000,tip=200):
@@ -1810,16 +1810,16 @@ def set_pressure_abort(thres=4):
 	p.set_abort_config(abort_id,0,1<<sensor_mask,0)
 
 def set_collision_abort(thres):
-    sensor_mask1 = InputAbort.COLLISION1
-    sensor_mask2 = InputAbort.COLLISION2
-    abort_id = AbortID.MOTORHARDBRAKE
-    current_val = p.read_sensor(1)
-    thres1 = current_val - thres
-    thres2 = current_val + thres
-    print (current_val,thres1,thres2)
-    p.set_abort_threshold(sensor_mask1,thres1)
-    p.set_abort_threshold(sensor_mask2,thres2)
-    p.set_abort_config(abort_id,0,(1<<sensor_mask2)|(1<<sensor_mask1) ,1<<sensor_mask1)
+	sensor_mask1 = InputAbort.COLLISION1
+	sensor_mask2 = InputAbort.COLLISION2
+	abort_id = AbortID.MOTORHARDBRAKE
+	current_val = p.read_sensor(1)
+	thres1 = current_val - thres
+	thres2 = current_val + thres
+	print (current_val,thres1,thres2)
+	p.set_abort_threshold(sensor_mask1,thres1)
+	p.set_abort_threshold(sensor_mask2,thres2)
+	p.set_abort_config(abort_id,0,(1<<sensor_mask2)|(1<<sensor_mask1) ,1<<sensor_mask1)
 
 
 def set_picktip_abort(col=100,curr=0.5):
@@ -2486,11 +2486,11 @@ SensorId                633956266
 
 
 def pipettingV2(volume, air_column = 570, max_flow = 150, min_flow = 10, decel_vol= 100, cut_off = 10000, set_tolerance = 0.05, settling_time = 1e6, limitp2 = 50, ext_vol_limit = 2):
-    global PipettingV2_done
-    PipettingV2_done = False
-    p.start_pipettingV2(volume, air_column, max_flow, min_flow, decel_vol, cut_off, set_tolerance, settling_time, limitp2, ext_vol_limit)
-    while (PipettingV2_done == False):
-        time.sleep(0.1)
+	global PipettingV2_done
+	PipettingV2_done = False
+	p.start_pipettingV2(volume, air_column, max_flow, min_flow, decel_vol, cut_off, set_tolerance, settling_time, limitp2, ext_vol_limit)
+	while (PipettingV2_done == False):
+		time.sleep(0.1)
 
 def default_limit_p1():
 	tare_pressure()

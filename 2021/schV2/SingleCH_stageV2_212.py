@@ -1,4 +1,4 @@
-### Script Version : v2021.3.1.133136
+### Script Version : v2021.3.1.16957
 from misc import *
 import FloDeck_stageV2_212 as deck
 import pregx as pr
@@ -2442,7 +2442,8 @@ class mainLLT():
 			while not mainLLT.testStat: time.sleep(0.1)
 			if tool == 0: 
 				plotter.liveplot(p1=True,p2=True,res=True,vel=True)
-			else: 
+			else:
+				cplotter.setSensor(p1=(True,3,-2000),p2=(True,3,-2000),res=(True,0.4,0),vel=(True,20,0))
 				cplotter.liveplot(p1=True,p2=True,res=True,vel=True)
 		else:
 			return mainLLT.test_setUp(tip, volume, iters, log=True)
@@ -2469,10 +2470,10 @@ class DPC():
 		aspirate(vol)
 		if dpcOn: c.dpc_on()
 		pref = c.AverageP2
-		c.move_rel_z(50,15,1000)
-		DPC.__timeCather()
+		#DPC.__timeCather()
 
 		def wait(dur):
+			c.move_rel_z(50,15,1000)
 			t0 = time.perf_counter()
 			now = time.perf_counter()
 			while now-t0 < dur:
@@ -2483,7 +2484,9 @@ class DPC():
 
 		# Liveplotter
 		if live:
-			cplotter.addStaticChart('P2 Ref',pref)
+			cplotter.resetStaticChart()
+			cplotter.addStaticChart('P2 Ref',pref,copyScaling='p2')
+			cplotter.setSensor(p1=True,p2=True,valve=(True,100,900))
 			cplotter.run(wait, dur)
 		else:
 			wait(dur)
@@ -2495,9 +2498,9 @@ class DPC():
 		c.stop_logger()
 		DPC.runStat = False
 		c.move_rel_z(50,100,100)
-		printy(f'Occured at {DPC.mTime}s') if DPC.mTime else printy('Nothing!')
+		#printy(f'Occured at {DPC.mTime}s') if DPC.mTime else printy('Nothing!')
 		time.sleep(1)
-		#DPC.readLog(c.file_name, pref)
+		DPC.readLog(c.file_name, pref)
 
 	@staticmethod
 	def __timeCather():

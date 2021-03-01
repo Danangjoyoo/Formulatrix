@@ -59,4 +59,4 @@ SPlotter --> Safe PyQt Plotter (Manual Multiprocessing)
 ** Under Development **
 """
 
-from FLOPlotter2 import *
+from schPlotter2 import *

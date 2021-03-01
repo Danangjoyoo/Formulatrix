@@ -1,4 +1,4 @@
-### Script Version : v2021.3.1.81713
+### Script Version : v2021.3.1.133136
 from misc import *
 import FloDeck_stageV2_212 as deck
 import pregx as pr
@@ -2450,7 +2450,7 @@ class mainLLT():
 llt = mainLLT
 
 class DPC():
-	dripTime = 0
+	mTime = 0
 	counter = None
 	runStat = False
 
@@ -2461,23 +2461,33 @@ class DPC():
 	def off(): c.dpc_off()
 
 	@staticmethod
-	def test(tip=200,vol=200,dur=180,dpcOn=True):
+	def test(tip=20,vol=20,dur=180,dpcOn=True,live=False):
 		DPC.runStat = True
-		tare()
+		tare()		
 		lld.findSurface(-170,tip=tip)
 		c.start_logger(sensorm=2608,openui=False)
 		aspirate(vol)
 		if dpcOn: c.dpc_on()
 		pref = c.AverageP2
 		c.move_rel_z(50,15,1000)
-		t0 = time.perf_counter()
-		now = time.perf_counter()
-		DPC.__dripTimeCather()
-		while now-t0 < dur:
+		DPC.__timeCather()
+
+		def wait(dur):
+			t0 = time.perf_counter()
 			now = time.perf_counter()
-			DPC.counter = now - t0
-			printy(' elapsed: {}s end in {}s\t'.format(int(DPC.counter), dur), end='\r')
-			#print('DPC Test end in: {}:{} '.format(2-int((DPC.now-t0)/60), 60-int((DPC.now-t0)%60)), end='\r')
+			while now-t0 < dur:
+				now = time.perf_counter()
+				DPC.counter = now - t0
+				printy(' elapsed: {}s end in {}s\t'.format(int(DPC.counter), dur), end='\r')				
+				if kb.is_pressed('ESC'): break
+
+		# Liveplotter
+		if live:
+			cplotter.addStaticChart('P2 Ref',pref)
+			cplotter.run(wait, dur)
+		else:
+			wait(dur)
+
 		winsound.Beep(1300,1000)
 		lld.findSurface(-170,lld='wet',tip=tip)
 		if dpcOn: c.dpc_off()
@@ -2485,16 +2495,16 @@ class DPC():
 		c.stop_logger()
 		DPC.runStat = False
 		c.move_rel_z(50,100,100)
-		printy(f'Drip/Up at {DPC.dripTime}s') if DPC.dripTime else printy('No drip!')
+		printy(f'Occured at {DPC.mTime}s') if DPC.mTime else printy('Nothing!')
 		time.sleep(1)
-		DPC.readLog(c.file_name, pref)
+		#DPC.readLog(c.file_name, pref)
 
 	@staticmethod
-	def __dripTimeCather():        
+	def __timeCather():
 		def keyEvent():
-			while not kb.is_pressed('ESC') and DPC.runStat: pass
-			if DPC.runStat: DPC.dripTime = DPC.counter
-		DPC.dripTime = 0
+			while not kb.is_pressed('`') and DPC.runStat: pass
+			if DPC.runStat: DPC.mTime = DPC.counter
+		DPC.mTime = 0
 		t = threading.Thread(target=keyEvent)
 		t.start()
 

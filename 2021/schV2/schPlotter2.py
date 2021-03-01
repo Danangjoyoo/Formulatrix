@@ -263,7 +263,7 @@ class CPlotter():
         self.before_vel = 0
         self.current_acc = 0
         self.before_acc = 0
-        self.logs = [[]]
+        self.staticVar = {}
         self.varPack = {
             'travel': [[], 'travel', False, 1.0, 0.0],
             'vel': [[], 'vel', False, 20.0, 0.0],
@@ -273,7 +273,6 @@ class CPlotter():
             'p1': [[], 'p1', False, 3.0, -2000.0],
             'p2': [[], 'p2', False, 3.0, -2000.0]
         }
-
         self.fname = None
         self.n = 0
 
@@ -291,7 +290,8 @@ class CPlotter():
             self.thread1.start()
             time.sleep(0.1)
             # set sensor yang mau diplot <nama sensor>=True di parameter
-            self.liveplot(p1=True,p2=True,vel=True,res=True)
+            #self.liveplot(p1=True,p2=True,vel=True,res=True)
+            self.liveplot(p1=True,p2=True)
             if self.thread1.isAlive(): 
                 printg('waiting for thrad to be done')
                 self.thread1.join()
@@ -334,12 +334,14 @@ class CPlotter():
                 if 7 in s: self.varPack[var][showStat] = True
                 else: self.varPack[var][showStat] = True if var in s else False
         labelTravel, labelVel, labelAcc, labelCol, labelRes, labelP1, labelP2 = [None for i in range(7)]
-        labels = [labelTravel, labelVel, labelAcc, labelCol, labelRes, labelP1, labelP2]
-        colors = [(255,150,25),'y','b','g','c',(100,40,250),(220,60,19)]
+        self.labels = [labelTravel, labelVel, labelAcc, labelCol, labelRes, labelP1, labelP2]
+        self.colors = [(255,150,25),'y','b','g','c',(100,40,250),(220,60,19)]
         for i, key in enumerate(self.varPack.keys()): 
-            labels[i] = key if (self.varPack[key][scale] == 1 and not self.varPack[key][offset]) else key+' (scaled)'
+            self.labels[i] = key if (self.varPack[key][scale] == 1 and not self.varPack[key][offset]) else key+' (scaled)'
             if self.varPack[key][showStat]:
-                self.varPack[key].append(self.wiplot.plot(pen=colors[i], name=labels[i]))
+                self.varPack[key].append(self.wiplot.plot(pen=self.colors[i], name=self.labels[i]))
+        if self.staticVar:
+            for var in self.staticVar: self.staticVar[var].append(self.wiplot.plot(pen=tuple(np.random.randint(100,255,3)), name=var))
         self.writeLog(['tick','time',*self.varPack.keys()])
         printy("IGNORE ANY ERROR..")
         timer = QtCore.QTimer()
@@ -353,6 +355,10 @@ class CPlotter():
             self.varPack[key][0] = []
             if len(self.varPack[key])-1 == plotClass:
                 self.varPack[key].pop(plotClass)
+        if self.staticVar:
+            for var in self.staticVar: 
+                self.staticVar[var][0] = []
+                self.staticVar[var].pop(plotClass)
         printy("IGNORE ANY ERROR..")
 
     def autoUpdate(self):
@@ -375,6 +381,8 @@ class CPlotter():
             # set limit
             if len(self.varPack['travel'][0]) > self.limit:
                 for var in self.varPack: self.varPack[var][container].pop(0)
+                if self.staticVar:
+                    for var in self.staticVar: self.staticVar[var][container].pop(0)
             else:
                 self.x = [i+1 for i in range(len(self.varPack['travel'][0])+1)]
             # Movement
@@ -394,8 +402,12 @@ class CPlotter():
             vals = [self.current_travel, self.current_vel, self.current_acc, col, res, p1, p2]
             # ADD DATA
             for i, key in enumerate(self.varPack): self.varPack[key][container].append(vals[i]*self.varPack[key][scale]+self.varPack[key][offset])
+            if self.staticVar:
+                for var in self.staticVar: self.staticVar[var][container].append(self.staticVar[var][1]*self.staticVar[var][scale]+self.staticVar[var][offset])
             # start to plot
             for var in self.varPack: self.varPack[var][plotClass].setData(self.x,self.varPack[var][container]) if self.varPack[var][showStat] else None
+            if self.staticVar:
+                for var in self.staticVar: self.staticVar[var][plotClass].setData(self.x, self.staticVar[var][container])
             # end of plotting ======================= save to logs
             self.writeLog([self.n,self.current_t,*vals])
             self.n += 1
@@ -413,6 +425,12 @@ class CPlotter():
         for val in vals: dataStr += str(val)+','
         f.write(dataStr+'\n')
         f.close()
+
+    def addStaticChart(self,key,val,scale=1.0,offset=0.0):
+        self.staticVar[key+'(static)'] = [[], val,  True, scale, offset]
+
+    def resetStaticChart(self):
+        self.staticVar = {}
 
     def setSensor(self,**sens): # untuk set sensor dari terminal dan limit
         container, label, showStat, scale = 0, 1, 2, 3
@@ -498,7 +516,8 @@ class SPlotter():
             self.thread1.start()
             time.sleep(0.1)
             # set sensor yang mau diplot <nama sensor>=True di parameter
-            self.liveplot(p1=True,p2=True,vel=True,res=True)
+            #self.liveplot(p1=True,p2=True,vel=True,res=True)
+            self.liveplot(p1=True,p2=True)
             if self.thread1.isAlive(): 
                 printg('waiting for thrad to be done')
                 self.thread1.join()

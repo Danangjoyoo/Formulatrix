@@ -265,14 +265,14 @@ class CPlotter():
 		self.before_acc = 0
 		self.staticVar = {}
 		self.varPack = {
+			'valve': [[], 'valve (OFF: 930 | ON: 935)', False, 5, 930],
 			'travel': [[], 'travel', False, 1.0, 0],
 			'vel': [[], 'vel', False, 1, 0],
 			'acc': [[], 'acc', False, 1, 0],
 			'col': [[], 'col', False, 1, 0],
 			'res': [[], 'res', False, 1, 0],
 			'p1': [[], 'p1', False, 1, 0],
-			'p2': [[], 'p2', False, 1, 0],
-			'valve': [[], 'valve', False, 100, 900]}
+			'p2': [[], 'p2', False, 1, 0]}
 		self.fname = None
 		self.n = 0
 		self.timer = None
@@ -291,8 +291,8 @@ class CPlotter():
 			self.thread1 = threading.Thread(target=self.execute)
 			self.thread1.start()
 			time.sleep(0.1)
-			self.resetVarPack()
 			self.liveplot()
+			self.resetVarPack()
 			if self.thread1.isAlive(): 
 				printg('waiting for the thread to be done')
 				self.thread1.join()
@@ -304,7 +304,7 @@ class CPlotter():
 		time.sleep(1)
 		self.func(*self.args) if self.args else self.func()
 		time.sleep(2)
-		if self.quit: self.terminate()
+		if self.quit: self.plotStat = False
 
 	def liveplot(self,*s,**show):
 		self.init = True
@@ -329,17 +329,11 @@ class CPlotter():
 		container, label, showStat, scale, offset, plotClass = 0, 1, 2, 3, 4, 5
 		if 'limit' in show: self.limit = show['limit']
 		self.setSensor(*s,**show)
-		#for var in self.varPack:
-		#	if show:
-		#		self.varPack[var][showStat] = show[var] if var in show else self.varPack[var][showStat]
-		#	if s:
-		#		if 7 in s: self.varPack[var][showStat] = True
-		#		else: self.varPack[var][showStat] = True if var in s else self.varPack[var][showStat]
 		labelTravel, labelVel, labelAcc, labelCol, labelRes, labelP1, labelP2, labelValve = [None for i in range(8)]
 		self.labels = [labelTravel, labelVel, labelAcc, labelCol, labelRes, labelP1, labelP2, labelValve]
 		self.colors = [(255,150,25),'y','b','g','c',(100,40,250),(220,60,19), (247,169,169)]
 		for i, key in enumerate(self.varPack.keys()): 
-			self.labels[i] = key if (self.varPack[key][scale] == 1 and not self.varPack[key][offset]) else key+' (scaled)'
+			self.labels[i] = self.varPack[key][label] if (self.varPack[key][scale] == 1 and not self.varPack[key][offset]) else self.varPack[key][label]+' (scaled)'
 			if self.varPack[key][showStat]:
 				self.varPack[key].append(self.wiplot.plot(pen=self.colors[i], name=self.labels[i]))
 		if self.staticVar:
@@ -419,8 +413,11 @@ class CPlotter():
 
 	def terminate(self):
 		self.plotStat = False
-		self.timer.stop()
-		self.win.close()
+		try:
+			self.timer.stop()
+			self.win.close()
+		except:
+			pass
 
 	def writeLog(self,vals):
 		dataStr = ''
@@ -431,14 +428,14 @@ class CPlotter():
 
 	def resetVarPack(self):
 		self.varPack = {
+			'valve': [[], 'valve (OFF: 930 | ON: 935)', False, 5, 930],
 			'travel': [[], 'travel', False, 1.0, 0],
 			'vel': [[], 'vel', False, 1, 0],
 			'acc': [[], 'acc', False, 1, 0],
 			'col': [[], 'col', False, 1, 0],
 			'res': [[], 'res', False, 1, 0],
 			'p1': [[], 'p1', False, 1, 0],
-			'p2': [[], 'p2', False, 1, 0],
-			'valve': [[], 'valve', False, 100, 900]}
+			'p2': [[], 'p2', False, 1, 0]}
 
 	def addStaticChart(self,key,val,scale=1.0,offset=0.0,copyScaling=None):
 		scale, offset = 3, 4

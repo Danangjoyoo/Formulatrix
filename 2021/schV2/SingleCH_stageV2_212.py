@@ -1,4 +1,4 @@
-### Script Version : v2021.3.1.16957
+### Script Version : v2021.3.2.82047
 from misc import *
 import FloDeck_stageV2_212 as deck
 import pregx as pr
@@ -2231,7 +2231,7 @@ class mainLLT():
 			#c.p.set_liquid_tracking_limit(True, c.chipCalibrationConfig.upperLimit*c.stem_eng, c.chipCalibrationConfig.lowerLimit*c.stem_eng)
 			c.p.set_liquid_tracking_resistance_params(
 				c.DLLTConfig.Res.kp[tip],
-				c.DLLTConfig.Res.ki,
+				c.DLLTConfig.Res.ki[tip],
 				c.DLLTConfig.Res.kd[tip],
 				abs(mainLLT.threshold),
 				c.DLLTConfig.Res.stepSize,
@@ -2486,7 +2486,8 @@ class DPC():
 		if live:
 			cplotter.resetStaticChart()
 			cplotter.addStaticChart('P2 Ref',pref,copyScaling='p2')
-			cplotter.setSensor(p1=True,p2=True,valve=(True,100,900))
+			cplotter.resetVarPack()
+			cplotter.setSensor(p1=True,p2=True,valve=True)
 			cplotter.run(wait, dur)
 		else:
 			wait(dur)
@@ -2499,7 +2500,7 @@ class DPC():
 		DPC.runStat = False
 		c.move_rel_z(50,100,100)
 		#printy(f'Occured at {DPC.mTime}s') if DPC.mTime else printy('Nothing!')
-		time.sleep(1)
+		time.sleep(2)
 		DPC.readLog(c.file_name, pref)
 
 	@staticmethod

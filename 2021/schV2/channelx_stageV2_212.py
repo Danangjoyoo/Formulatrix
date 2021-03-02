@@ -2708,7 +2708,7 @@ class DLLTConfig(): # ================== THIS IS V2 CONFIG
 		stepSize = 2.5
 		bigStep = 10
 		kp = {20: 1.2, 200: 0.15, 1000: 0.95}
-		ki = 0
+		ki = {20: 0, 200: 0, 1000: 0}
 		kd = {20: 0.126, 200: 0, 1000: 0.095}
 		inverted = False
 		stem_vel = {20: 10, 200: 10, 1000:10}

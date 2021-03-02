@@ -2813,7 +2813,7 @@ def setUp_wlld():
 	sensorCatcher2 = PostTrigger('s2')
 	sensorCatcher2.start()
 	printg('WLLD has been set..')
-	return sensing.res()-PLLDConfig.resThres
+	return sensing.res()-WLLDConfig.resThres
 
 class PostTrigger(threading.Thread):
 	proc = 0

@@ -1,4 +1,4 @@
-### Script Version : v2021.3.2.93850
+### Script Version : v2021.3.2.125231
 from misc import *
 import FloDeck_stageV2_212 as deck
 import pregx as pr
@@ -1704,11 +1704,11 @@ class mainLLD():
 				'NormalZ Trigger'   +','+
 				'HardZ Trigger'     +','+
 				'LLD Freq'          +','+
-				'Triggered Res'     +','+
+				'Res at Triggered'  +','+
 				'dRes(init-trig)'   +','+
 				'Depth'             +','+
-				'Triggered P1'      +','+
-				'Triggered P2'      +','+
+				'P1 at Triggered'   +','+
+				'P2 at Triggered'   +','+
 				'dP1(init-trig)'    +','+
 				'dP2(init-trig)'    +','+
 				'Pre Read Freq'     +','+
@@ -1762,6 +1762,7 @@ class mainLLD():
 							# Dry Phase
 							printy('DRY PHASE..')
 							time.sleep(1) #wait the water to stable
+							res_init1 = np.average([c.sensing.res() for i in range(10)])
 							t1 = time.time()
 							Dry.zero = mainLLD.findSurface(target,lld='dry',tip=tip)
 							Dry.t_operation = time.time()-t1
@@ -1802,8 +1803,9 @@ class mainLLD():
 
 							printb('WET PHASE..')
 							# Wet phase
-							t3 = time.time()
 							align(1,source,target+30, target+30)
+							res_init2 = np.average([c.sensing.res() for i in range(10)])
+							t3 = time.time()
 							Wet.zero = mainLLD.findSurface(target,lld='wet',tip=tip)
 							Wet.t_operation = time.time()-t3
 
@@ -1856,7 +1858,7 @@ class mainLLD():
 								zeros,
 								p1_init,
 								atm_press,
-								res_init,
+								res_init1,
 								c.PLLDConfig.stem_vel,
 								c.PLLDConfig.stem_acc,
 								c.PLLDConfig.flow[tip],
@@ -1906,7 +1908,7 @@ class mainLLD():
 								zeros,
 								p1_init,
 								atm_press,
-								res_init,
+								res_init2,
 								c.PLLDConfig.stem_vel,
 								c.PLLDConfig.stem_acc,
 								c.PLLDConfig.flow[tip],

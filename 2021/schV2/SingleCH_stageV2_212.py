@@ -1,4 +1,4 @@
-### Script Version : v2021.3.3.111418
+### Script Version : v2021.3.3.194313
 from misc import *
 import FloDeck_stageV2_212 as deck
 import pregx as pr
@@ -29,7 +29,7 @@ P200_picktip_z = -126
 P20_picktip_z = -136
 #Zpick   = [-114,-104]
 
-pick_targets    = {20: -199, 200: -191.5, 1000: -143.5}
+pick_targets    = {20: -199, 200: -191, 1000: -143.5}
 asp_targets     = {20: -170, 200: -160, 1000: -110}
 dsp_targets     = {20: -120, 200: -130, 1000: -80}
 safes           = {20: -95, 200: -85, 1000: -20}
@@ -558,9 +558,10 @@ def menu():
 def eject(**kargs):
 	if kargs:
 		if 'tip' in kargs and 'ejectpos' in kargs:
-			if kargs['tip'] == 1000 and kargs['ejectpos'] in deck.wellname:
-				align(0,kargs['ejectpos'],-120)
-			else: align(1,'D2',-120)
+			if kargs['tip'] == 1000 and kargs['ejectpos'] in deck.wellname: 
+				align(0,kargs['ejectpos'],-120)				
+			else: 
+				align(1,'D2',-120)
 		else: align(1,'D2',-120)
 	else: align(1,'D2',-120)
 	c.start_flow(50)
@@ -2369,7 +2370,7 @@ class mainLLT():
 		mainLLT.resNoise = max(noise) - min(noise)
 		mainLLT.r1,_ = mainLLT.preReading()
 		r2,_ = mainLLT.preReading(-c.PrereadingConfig.stepDown)
-		print('r2 :',r2,'| r1:', mainLLT.r1)
+		print('r1:',mainLLT.r1,'| r2:', r2)
 		mainLLT.threshold = (r2 - mainLLT.r1)*c.PrereadingConfig.thresMultiplier
 		if   str.lower(operation) == 'asp': mainLLT.r2asp = r2
 		elif str.lower(operation) == 'dsp': mainLLT.r2dsp = r2
@@ -2446,6 +2447,16 @@ class mainLLT():
 
 llt = mainLLT
 
+def ccpread(tip):
+	lld.findSurface(-190,tip=tip)
+	print('surface', c.sensing.res())
+	t0 = time.perf_counter()
+	now = 0
+	while now - t0 < 5:
+		print(now-t0, c.sensing.res())
+		if now == 0: llt.preReading(-1)
+		now = time.perf_counter()
+
 class DPC():
 	mTime = 0
 	counter = None
@@ -2458,39 +2469,43 @@ class DPC():
 	def off(): c.dpc_off()
 
 	@staticmethod
-	def setDPCpid(kp,ki,kd):
+	def setPid(kp,ki,kd):
 		c.p.set_regulator_pid(0,2,kp,ki,kd)
 
 	@staticmethod
 	def test(tip=20,vol=20,dur=180,dpcOn=True,live=False):
 		# Setting DPC
-		kp = 0.02
+		kp = 0.04
 		ki = 0
-		kd = 0.002
+		kd = 0
 		c.p.set_regulator_pid(0,2,kp,ki,kd,0.2)		
 		#============================
 		picktip('H1',tip=tip)
-		align(2,'D10',-30)
-		lld.findSurface(-190,lld='wet')
-		c.move_rel_z(-0.5,10,10)
-		if live:
-			cplotter.resetStaticChart()
-			cplotter.run(c.leak_v20,p1=True,p2=True)
-			leak_results = cplotter.getReturn()
-		else:
-			leak_results = c.leak_v20()
-		leakRate = leak_results[1][5]
+		#align(2,'D10',-30)
+		#lld.findSurface(-190,lld='wet')
+		#c.move_rel_z(-0.5,10,10)
+		#if live:
+		#	cplotter.resetStaticChart()
+		#	cplotter.run(c.leak_v20,p1=True,p2=True)
+		#	leak_results = cplotter.getReturn()
+		#else:
+		#	leak_results = c.leak_v20()
+		#leakRate = leak_results[1][5]
+		leakRate = 10
 		c.move_rel_z(50,100,100)
 		if leakRate < 20.0:
 			DPC.runStat = True
 			tare()
 			align(1,'D10',-100)
 			lld.findSurface(-170,tip=tip)
-			c.start_logger(sensorm=2608,openui=False)
+			if tip==1000: c.move_rel_z(-5,10,100)
+			#if tip == 1000: c.p.select_flow_sensor(1)
+			c.start_logger(sensorm=2608+8192,openui=False)
 			aspirate(vol)
-			if dpcOn: 
-				c.dpc_on()
+			if dpcOn:
+				c.dpc_on(vol_limit=7)
 				c.readConfig(c.p.get_regulator_pid,0,2)
+			
 			pref = c.AverageP2
 			#DPC.__timeCather()
 
@@ -2503,7 +2518,7 @@ class DPC():
 					DPC.counter = now - t0
 					printy(' elapsed: {}s end in {}s\t'.format(int(DPC.counter), dur), end='\r')
 					if kb.is_pressed('ESC'):
-						printy(' elapsed: {}s end in {}s\t'.format(int(DPC.counter), dur))
+						printy('\nelapsed: {}s end in {}s\t'.format(int(DPC.counter), dur))
 						printr('DPC Test Aborted')
 						break
 
@@ -2514,6 +2529,7 @@ class DPC():
 				cplotter.resetVarPack()
 				cplotter.setSensor(p1=True,p2=True,valve=True)
 				cplotter.run(wait, dur)
+				cplotter.resetStaticChart()
 			else:
 				wait(dur)
 
@@ -2521,6 +2537,7 @@ class DPC():
 			lld.findSurface(-170,lld='wet',tip=tip)
 			if dpcOn: c.dpc_off()
 			dispense(vol*1.2)
+			#if tip == 1000: c.p.select_flow_sensor(0)
 			c.stop_logger()
 			DPC.runStat = False
 			c.move_rel_z(50,100,100)
@@ -2528,9 +2545,13 @@ class DPC():
 			time.sleep(2)
 			DPC.readLog(c.file_name, pref)
 
-			align(2,'D10',-10)
-			lld.findSurface(-190,lld='wet')
-			c.leak_v20()
+			#align(2,'D10',-10)
+			#lld.findSurface(-190,lld='wet')
+			#c.leak_v20()
+			if tip == 1000: 
+				eject(ejectpos='H5',tip=1000)
+			else:
+				eject()
 			c.move_rel_z(50,100,100)
 		else:
 			printr('DPC Test Failed: Leak Rate too High!')

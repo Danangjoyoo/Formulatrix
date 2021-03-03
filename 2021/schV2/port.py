@@ -10,7 +10,7 @@ def Device(address):
             exit("No COM port found!, abort...")
             return False
         else:
-            serial_port = str(comPorts[1])[0:5]
+            serial_port = str(comPorts[comNum])[0:5]
             drv=SlcanFlmxDriver(PIPETTE_ADDRESS,serial_port)
             print('connected to',serial_port)
             return FmlxDevice(drv, PIPETTE_ADDRESS, path_ch)

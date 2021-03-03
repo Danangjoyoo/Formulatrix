@@ -1,4 +1,4 @@
-### Script Version : v2021.3.2.125231
+### Script Version : v2021.3.3.91022
 from misc import *
 import FloDeck_stageV2_212 as deck
 import pregx as pr
@@ -29,7 +29,7 @@ P200_picktip_z = -126
 P20_picktip_z = -136
 #Zpick   = [-114,-104]
 
-pick_targets    = {20: -199, 200: -191, 1000: -143.5}
+pick_targets    = {20: -199, 200: -191.5, 1000: -143.5}
 asp_targets     = {20: -170, 200: -160, 1000: -110}
 dsp_targets     = {20: -120, 200: -130, 1000: -80}
 safes           = {20: -95, 200: -85, 1000: -20}
@@ -127,7 +127,6 @@ def initialization():
 	parkingBeep(True)
 	#w.pump_power(1)
 	abort_flow()
-	tare()
 	c.clear_abort_config() #abort all
 	c.clear_motor_fault()
 	c.clear_estop()
@@ -140,14 +139,10 @@ def initialization():
 	deck.home_all_motor()
 	time.sleep(2)
 	pr.default_preg()
+	tare()
+	c.set_breach_in()
 	speedMode('m')
 	parkingBeep(False)
-	#time.sleep(2)
-	#aspirate(200)
-	#time.sleep(2)
-	#dispense(200)
-	#align(A[0]+100)
-	#c.eject()
 
 	print("System Ready\n")
 
@@ -1564,7 +1559,8 @@ class mainLLD():
 		depth -= c.chipCalibrationConfig.colCompressTolerance
 		if str.lower(lld) == 'dry':
 			Dry.reset()
-			Dry.pressLimit = c.setUp_plld(tip=tip, lowSpeed=lowSpeed, detectMode=detectMode)
+			Dry.pressLimit, Dry.resLimit = c.setUp_plld(tip=tip, lowSpeed=lowSpeed, detectMode=detectMode)
+			if detectMode == 1: Dry.resLimit = None
 		elif str.lower(lld) == 'wet':
 			Wet.reset()
 			Wet.resLimit = c.setUp_wlld()
@@ -1767,7 +1763,7 @@ class mainLLD():
 							Dry.zero = mainLLD.findSurface(target,lld='dry',tip=tip)
 							Dry.t_operation = time.time()-t1
 							Dry.p1, Dry.p2 = c.sensing.p1(),c.PostTrigger.press
-							Dry.res = c.PostTrigger.res
+							Dry.res = np.average([c.sensing.res() for i in range(10)]) #because hardbrake #c.PostTrigger.res
 							time.sleep(c.PrereadingConfig.readDelay)
 
 							# PreReading Phase
@@ -1811,8 +1807,7 @@ class mainLLD():
 
 							#Checking wlld triggers
 							Wet.p1, Wet.p2 = c.sensing.p1(), c.PostTrigger.press
-							Wet.res = c.PostTrigger.res
-							c.DLLT_stop()
+							Wet.res = c.PostTrigger.res # because hardbrake by resistance
 							time.sleep(c.PrereadingConfig.readDelay)
 
 							# PreReading Phase
@@ -2444,9 +2439,8 @@ class mainLLT():
 			while not mainLLT.testStat: time.sleep(0.1)
 			if tool == 0: 
 				plotter.liveplot(p1=True,p2=True,res=True,vel=True)
-			else:
-				cplotter.setSensor(p1=(True,3,-2000),p2=(True,3,-2000),res=(True,0.4,0),vel=(True,20,0))
-				cplotter.liveplot(p1=True,p2=True,res=True,vel=True)
+			else:				
+				cplotter.liveplot(p1=(True,3,-2000),p2=(True,3,-2000),res=(True,0.4,0),vel=(True,20,0))
 		else:
 			return mainLLT.test_setUp(tip, volume, iters, log=True)
 
@@ -2465,45 +2459,69 @@ class DPC():
 
 	@staticmethod
 	def test(tip=20,vol=20,dur=180,dpcOn=True,live=False):
-		DPC.runStat = True
-		tare()		
-		lld.findSurface(-170,tip=tip)
-		c.start_logger(sensorm=2608,openui=False)
-		aspirate(vol)
-		if dpcOn: c.dpc_on()
-		pref = c.AverageP2
-		#DPC.__timeCather()
-
-		def wait(dur):
-			c.move_rel_z(50,15,1000)
-			t0 = time.perf_counter()
-			now = time.perf_counter()
-			while now-t0 < dur:
-				now = time.perf_counter()
-				DPC.counter = now - t0
-				printy(' elapsed: {}s end in {}s\t'.format(int(DPC.counter), dur), end='\r')				
-				if kb.is_pressed('ESC'): break
-
-		# Liveplotter
+		picktip('H1',tip=tip)
+		align(2,'D10',-30)
+		lld.findSurface(-190,lld='wet')
+		c.move_rel_z(-0.5,10,10)
 		if live:
 			cplotter.resetStaticChart()
-			cplotter.addStaticChart('P2 Ref',pref,copyScaling='p2')
-			cplotter.resetVarPack()
-			cplotter.setSensor(p1=True,p2=True,valve=True)
-			cplotter.run(wait, dur)
+			cplotter.run(c.leak_v20,p1=True,p2=True)
+			leak_results = cplotter.getReturn()
 		else:
-			wait(dur)
-
-		winsound.Beep(1300,1000)
-		lld.findSurface(-170,lld='wet',tip=tip)
-		if dpcOn: c.dpc_off()
-		dispense(vol*1.2)
-		c.stop_logger()
-		DPC.runStat = False
+			leak_results = c.leak_v20()
+		leakRate = leak_results[1][5]
 		c.move_rel_z(50,100,100)
-		#printy(f'Occured at {DPC.mTime}s') if DPC.mTime else printy('Nothing!')
-		time.sleep(2)
-		DPC.readLog(c.file_name, pref)
+		if leakRate < 20.0:
+			DPC.runStat = True
+			tare()
+			align(1,'D10',-100)
+			lld.findSurface(-170,tip=tip)
+			c.start_logger(sensorm=2608,openui=False)
+			aspirate(vol)
+			if dpcOn: c.dpc_on()
+			pref = c.AverageP2
+			#DPC.__timeCather()
+
+			def wait(dur):
+				c.move_rel_z(50,15,1000)
+				t0 = time.perf_counter()
+				now = time.perf_counter()
+				while now-t0 < dur:
+					now = time.perf_counter()
+					DPC.counter = now - t0
+					printy(' elapsed: {}s end in {}s\t'.format(int(DPC.counter), dur), end='\r')
+					if kb.is_pressed('ESC'):
+						printy(' elapsed: {}s end in {}s\t'.format(int(DPC.counter), dur))
+						printr('DPC Test Aborted')
+						break
+
+			# Liveplotter
+			if live:
+				cplotter.resetStaticChart()
+				cplotter.addStaticChart('P2 Ref',pref,copyScaling='p2')
+				cplotter.resetVarPack()
+				cplotter.setSensor(p1=True,p2=True,valve=True)
+				cplotter.run(wait, dur)
+			else:
+				wait(dur)
+
+			winsound.Beep(1300,1000)
+			lld.findSurface(-170,lld='wet',tip=tip)
+			if dpcOn: c.dpc_off()
+			dispense(vol*1.2)
+			c.stop_logger()
+			DPC.runStat = False
+			c.move_rel_z(50,100,100)
+			#printy(f'Occured at {DPC.mTime}s') if DPC.mTime else printy('Nothing!')
+			time.sleep(2)
+			DPC.readLog(c.file_name, pref)
+
+			align(2,'D10',-10)
+			lld.findSurface(-190,lld='wet')
+			c.leak_v20()
+			c.move_rel_z(50,100,100)
+		else:
+			printr('DPC Test Failed: Leak Rate too High!')
 
 	@staticmethod
 	def __timeCather():
@@ -2553,14 +2571,14 @@ class DPC():
 		devtick = tick[dpcStart[1]:dpcEnd[1]]
 		devp1 = p1[dpcStart[1]:dpcEnd[1]]
 		devp2 = p2[dpcStart[1]:dpcEnd[1]]
-		print('aaaa', devp2[0])
+		print('Detected Pref:', devp2[0])
 		if not pref: pref = devp2[0]
 		avgDevs = round(np.average([abs(pref-i) for i in devp2]),3)
 
 		# Deviation chart
 		ax2.title.set_text(f'DPC Chart | Avg Dev = {avgDevs} mbar')
 		ax2.plot(devtick, devp1, label='P1')
-		ax2.plot(devtick, devp2, label='P1')
+		ax2.plot(devtick, devp2, label='P2')
 		pline = [pref]*len(devtick)
 		ax2.plot(devtick,pline, '--', label='DPC Press Ref')
 		ax2.legend(loc='lower right')

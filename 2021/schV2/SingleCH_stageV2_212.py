@@ -1,4 +1,4 @@
-### Script Version : v2021.3.3.91022
+### Script Version : v2021.3.3.111418
 from misc import *
 import FloDeck_stageV2_212 as deck
 import pregx as pr
@@ -2458,7 +2458,17 @@ class DPC():
 	def off(): c.dpc_off()
 
 	@staticmethod
+	def setDPCpid(kp,ki,kd):
+		c.p.set_regulator_pid(0,2,kp,ki,kd)
+
+	@staticmethod
 	def test(tip=20,vol=20,dur=180,dpcOn=True,live=False):
+		# Setting DPC
+		kp = 0.02
+		ki = 0
+		kd = 0.002
+		c.p.set_regulator_pid(0,2,kp,ki,kd,0.2)		
+		#============================
 		picktip('H1',tip=tip)
 		align(2,'D10',-30)
 		lld.findSurface(-190,lld='wet')
@@ -2478,7 +2488,9 @@ class DPC():
 			lld.findSurface(-170,tip=tip)
 			c.start_logger(sensorm=2608,openui=False)
 			aspirate(vol)
-			if dpcOn: c.dpc_on()
+			if dpcOn: 
+				c.dpc_on()
+				c.readConfig(c.p.get_regulator_pid,0,2)
 			pref = c.AverageP2
 			#DPC.__timeCather()
 

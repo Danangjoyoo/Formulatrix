@@ -26,5 +26,5 @@ def deletes():
     del sys.path[1]
     del sys.modules['Formulatrix.Core.Protocol']
     print('module deleted')
-comNum = 0#zul 1
+comNum = 1#zul 1
 

@@ -251,9 +251,10 @@ class CPlotter():
 		self.x = []
 		self.thread = None
 		self.func = None
+		self.funcReturn = None
 		self.args = None
 		self.quit = True
-		self.limit = 100
+		self.limit = 150
 		self.win = None
 		self.current_t = 0
 		self.before_t = 0
@@ -301,10 +302,13 @@ class CPlotter():
 			printr('Please input function!')
 
 	def execute(self):
-		time.sleep(1)
-		self.func(*self.args) if self.args else self.func()
+		time.sleep(2)
+		self.funcReturn = self.func(*self.args) if self.args else self.func()
 		time.sleep(2)
 		if self.quit: self.plotStat = False
+
+	def getReturn(self):
+		return self.funcReturn
 
 	def liveplot(self,*s,**show):
 		self.init = True
@@ -329,9 +333,9 @@ class CPlotter():
 		container, label, showStat, scale, offset, plotClass = 0, 1, 2, 3, 4, 5
 		if 'limit' in show: self.limit = show['limit']
 		self.setSensor(*s,**show)
-		labelTravel, labelVel, labelAcc, labelCol, labelRes, labelP1, labelP2, labelValve = [None for i in range(8)]
-		self.labels = [labelTravel, labelVel, labelAcc, labelCol, labelRes, labelP1, labelP2, labelValve]
-		self.colors = [(255,150,25),'y','b','g','c',(100,40,250),(220,60,19), (247,169,169)]
+		labelValve, labelTravel, labelVel, labelAcc, labelCol, labelRes, labelP1, labelP2 = [None for i in range(8)]
+		self.labels = [labelValve, labelTravel, labelVel, labelAcc, labelCol, labelRes, labelP1, labelP2]
+		self.colors = [(247,169,169),(255,150,25),'y','b','g','c',(100,40,250),(220,60,19)]
 		for i, key in enumerate(self.varPack.keys()): 
 			self.labels[i] = self.varPack[key][label] if (self.varPack[key][scale] == 1 and not self.varPack[key][offset]) else self.varPack[key][label]+' (scaled)'
 			if self.varPack[key][showStat]:
@@ -394,7 +398,7 @@ class CPlotter():
 			p1 = self.object.read_sensor(6)
 			p2 = self.object.read_sensor(7)
 			valve = int(self.object.get_valve())
-			vals = [self.current_travel, self.current_vel, self.current_acc, col, res, p1, p2, valve]
+			vals = [valve, self.current_travel, self.current_vel, self.current_acc, col, res, p1, p2]
 			# ADD DATA
 			for i, key in enumerate(self.varPack): self.varPack[key][container].append(vals[i]*self.varPack[key][scale]+self.varPack[key][offset])
 			if self.staticVar:

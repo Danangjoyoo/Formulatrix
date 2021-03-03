@@ -1,16 +1,17 @@
 from path import*
-import time
+import time, imp, os, sys
 from numpy import corrcoef
 import numpy as np, pandas as pd
 import threading
 from subprocess import call
 from winsound import Beep
 from math import pi
-import imp
 from pandas import read_csv
 from port import Device
 import keyboard as kb, colorama as cora
 from collections import OrderedDict as ordict
+import tkinter as tk
+from tkinter import filedialog as fd
 from visualize import *
 
 
@@ -164,6 +165,7 @@ STRING_SENSOR_MASK = [
 	"Valve_in_open",
 	"Pipetting_flow",
 	"Preg_control_out",
+	"Target_Flow",
 	"Pipetting_volume",
 	"Counter"
 	]
@@ -286,12 +288,29 @@ def thread_logger(motorm=0,sensorm=16+32,openui=True,maxTick=None):
 		f.close()
 	if openui: call(["..\Include\log_plot.exe", file_name])
 
+def read_logger(filename=None):	
+	if not filename:
+		root = tk.Tk()
+		filename = fd.askopenfilename(initialdir=os.getcwd()+"/FirmwareLog")
+		root.destroy()
+	import matplotlib.pyplot as plt
+	import pandas as pd
+
+	df = pd.read_csv(filename)
+	x = [i for i in df['Tick']][:len(df['Tick'])-2]
+	for key in df.keys():
+		if key != 'Tick':
+			plt.plot(x, [i for i in df[key]][:len(df['Tick'])-2], label=key)
+	plt.legend(loc='upper left')
+	plt.show()
+
+	#call(["..\Include\log_plot.exe", filename])
+
 #------- End Logger ---------------
 
 # =========================================== EVENT =========================================================================================
-def motor_status():
-	print(decode_motor_status(p.get_motor_status))
-
+def motor_status(motor_id):
+	print(decode_motor_status(p.get_motor_status(motor_id)))
 
 def decode_motor_status(motor_status):
 	if(motor_status==0):
@@ -1045,7 +1064,7 @@ def dispense(vol,flow,flowmin=5,log=0,timeout= 5000,tip=200):
 		time.sleep(1)
 		stop_logger()
 
-def dpc_on():
+def dpc_on(vol_limit=5):
 	#start_logger(0,294)
 	'''
 	Make sure do DPC On after aspirate
@@ -1054,8 +1073,7 @@ def dpc_on():
 	time.sleep(0.2)
 	average_pressure(100)
 	p_dpc = AverageP2
-	vol_limit = 5
-	p.start_regulator_mode(1,p_dpc,2,1,vol_limit)
+	p.start_regulator_mode(1,p_dpc,2,True,vol_limit)
 
 	print("DPC ON at P2 = {}".format(p_dpc))
 	return p_dpc

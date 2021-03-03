@@ -924,6 +924,9 @@ def start_pipetting(vol,flow,flowmin=0,tip=200,timeout=5000,extravol=1):
 	max_flow = flow
 	min_flow = max_flow if flowmin==0 else flowmin
 	#print min_flow
+
+	printg('Maxflow:', max_flow)
+	printg('MinFlow:', min_flow)
 	
 	decel_vol = vol*2 if flowmin==0 else 0.75
 	decel_vol = decel_vol*vol
@@ -952,7 +955,7 @@ def start_pipetting(vol,flow,flowmin=0,tip=200,timeout=5000,extravol=1):
 	start = time.time()
 	#p.start_pipetting(1, 0, vol, max_flow, min_flow, decel_vol, predicted, dead_vol,p2high_limit, p2low_limit,start_ave_t1_ms,ave_window_p2t1,start_ave_t2_ms,ave_window_p2t2)
 	#set_breach_in()
-	#p.set_abort_config(AbortID.PIPBREACHBLOW, False, 1<<InputAbort.BREACH, 1<<InputAbort.BREACH)
+	p.set_abort_config(AbortID.PIPBREACHBLOW, False, 1<<InputAbort.BREACH, 1<<InputAbort.BREACH)
 	p.start_pipetting(extravol, 0, vol, max_flow, min_flow, decel_vol, predicted, dead_vol,p2high_limit, p2low_limit,start_ave_t2_ms,ave_window_p2t2)
 	#print max_flow,min_flow,decel_vol
 	if air_phase1:
@@ -1741,7 +1744,7 @@ def set_breach_in():
 		b = p.read_sensor(8)
 		if b > a:
 			a = b
-			print(a)
+			print('Breach:', a)
 		time.sleep(0.1)
 
 	time.sleep(0.1)
@@ -2362,7 +2365,7 @@ def DLLT_stop():
 	clear_abort_config(1)
 	p.stop_liquid_tracker()
 
-def leak_v20(limits=[100],dur=60):
+def leak_v20(limits=[400],dur=60):
 	#for FW 0.8.15
 	global pipetting_done_req
 	global  tare_done_req
@@ -2570,7 +2573,7 @@ class PicktipConfig:
 	firstMoveAcc = 100
 	firstMoveVel = 80
 	secondMoveAcc = 30
-	secondMoveVel = 3
+	secondMoveVel = 10#3
 	secondMoveDist = 1.0
 	picktipOffset = -0.1
 	retractAcc = 100
@@ -2693,7 +2696,7 @@ class PrereadingConfig():
 	stem_vel = 10
 	stem_acc = 1000
 	stepDown = 1
-	readDelay = 200/1000.0
+	readDelay = 300/1000.0
 	freq = 120
 	freq_delay = 250/1000.0
 	thresMultiplier = 0.25 # higher value ~ less sensitive
@@ -2766,10 +2769,11 @@ def setUp_plld(tip=20, lowSpeed=False, detectMode=0):
 	jerk = p.get_motor_deceleration(0)['stop_abort_jerk']
 	p.set_motor_deceleration(0, stopDecel, PLLDConfig.abortDecel, jerk)
 	# Set Abort PLLD
+	resLimit = sensing.res()-PLLDConfig.resThres
 	p.set_abort_threshold(InputAbort.COLLISION1,sensing.col()-PLLDConfig.colThres)
 	p.set_abort_threshold(InputAbort.COLLISION2,sensing.col()+PLLDConfig.colThres)
 	p.set_abort_threshold(InputAbort.PRESS2,p_ref)
-	p.set_abort_threshold(InputAbort.RESISTANCE,sensing.res()-PLLDConfig.resThres)
+	p.set_abort_threshold(InputAbort.RESISTANCE,resLimit)
 	collision1 = 1<<InputAbort.COLLISION1
 	collision2 = 1<<InputAbort.COLLISION2
 	pressure = 1<<InputAbort.PRESS2
@@ -2791,7 +2795,7 @@ def setUp_plld(tip=20, lowSpeed=False, detectMode=0):
 	sensorCatcher1 = PostTrigger('s1')
 	sensorCatcher1.start()
 	printg('PLLD has been set..')
-	return round(p_ref,2)
+	return round(p_ref,2), round(resLimit,2)
 
 def setUp_wlld():
 	printg(f'Setting Up WLLD -> resThres: {WLLDConfig.resThres}')

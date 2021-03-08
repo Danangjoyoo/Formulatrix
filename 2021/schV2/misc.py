@@ -5,12 +5,6 @@
 ######################### FOLDER CHECKING #########################
 #Adding required folder if there aren't exist yet
 import os
-if 'PlotterLog' not in os.listdir(os.getcwd()): 
-	os.system("mkdir PlotterLog")
-	os.chdir("PlotterLog")
-	if "conf" not in os.listdir(os.getcwd()):
-		os.system("mkdir conf")
-	os.chdir('..')
 if 'Level' not in os.listdir(os.getcwd()): os.system("mkdir Level")
 if 'FirmwareLog' not in os.listdir(os.getcwd()): os.system("mkdir FirmwareLog")
 
@@ -56,7 +50,9 @@ CPlotter --> PyQt Plotter (C/C++ Wrapper)
 - To recover from this error, just manually exit your program and start your script again.
 
 SPlotter --> Safe PyQt Plotter (Manual Multiprocessing)
-** Under Development **
++ High Speed (5-30 ms/tick)
++ Run in different GIL (multiprocess)
+- Manual SetUp and reset
 """
 
 from schPlotter2 import *

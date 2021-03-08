@@ -1,4 +1,4 @@
-### Script Version : v2021.3.3.194313
+### Script Version : v2021.3.8.205732
 from misc import *
 import FloDeck_stageV2_212 as deck
 import pregx as pr
@@ -29,11 +29,11 @@ P200_picktip_z = -126
 P20_picktip_z = -136
 #Zpick   = [-114,-104]
 
-pick_targets    = {20: -199, 200: -191, 1000: -143.5}
+pick_targets    = {20: -199.5, 200: -190.5, 1000: -143.5}
 asp_targets     = {20: -170, 200: -160, 1000: -110}
 dsp_targets     = {20: -120, 200: -130, 1000: -80}
 safes           = {20: -95, 200: -85, 1000: -20}
-evades          = {20: -20, 200: -30, 1000: 0}
+evades          = {20: -20, 200: -10, 1000: 0}
 
 
 def move_deck(pos):
@@ -559,7 +559,7 @@ def eject(**kargs):
 	if kargs:
 		if 'tip' in kargs and 'ejectpos' in kargs:
 			if kargs['tip'] == 1000 and kargs['ejectpos'] in deck.wellname: 
-				align(0,kargs['ejectpos'],-120)				
+				align(0,kargs['ejectpos'],-120, globals()['safes'][1000])
 			else: 
 				align(1,'D2',-120)
 		else: align(1,'D2',-120)
@@ -1093,9 +1093,6 @@ def setVelAcc_z_mode(mode):
 		vel_z = 150; acc_z = 1000
 speedMode('m')
 
-#Check Script Version
-scloud.version()
-
 def manualStem():
 	c.clear_motor_fault()
 	c.clear_estop()
@@ -1463,6 +1460,7 @@ plate = Plate
 
 plotter = Plotter(c.p)
 cplotter = CPlotter(c.p)
+splotter = SPlotter(c.p)
 
 def aa(counter=False, dur=1):
 	if not counter:
@@ -2461,100 +2459,119 @@ class DPC():
 	mTime = 0
 	counter = None
 	runStat = False
+	currentPos = 'C1'
+	pickedTip = False
 
 	@staticmethod
-	def on(): c.dpc_on()
+	def on(tip=20,vol=20): 
+	# make sure you tare pressure completed before start dpc
+	# make sure the tip isn't went to deep, activate the LLT resistance is recommended before runnIng DPC
+	# the tip depth effect the drip possibilities on the tip
+		c.p.select_flow_sensor(0)
+		kp = c.DPCConfig.kp[tip]
+		ki = c.DPCConfig.ki[tip]
+		kd = c.DPCConfig.kd[tip]
+		c.p.set_regulator_pid(0,2,kp,ki,kd,0.2)
+		volLimit = c.DPCConfig.calculateVolLimit(tip=tip,vol=vol)
+		c.dpc_on(volLimit)
 
 	@staticmethod
-	def off(): c.dpc_off()
+	def off(): c.dpc_off()	
 
 	@staticmethod
-	def setPid(kp,ki,kd):
-		c.p.set_regulator_pid(0,2,kp,ki,kd)
+	def getPid():
+		c.readConfig(c.p.get_regulator_pid,0,2)
 
 	@staticmethod
-	def test(tip=20,vol=20,dur=180,dpcOn=True,live=False):
-		# Setting DPC
-		kp = 0.04
-		ki = 0
-		kd = 0
-		c.p.set_regulator_pid(0,2,kp,ki,kd,0.2)		
-		#============================
-		picktip('H1',tip=tip)
-		#align(2,'D10',-30)
-		#lld.findSurface(-190,lld='wet')
-		#c.move_rel_z(-0.5,10,10)
-		#if live:
-		#	cplotter.resetStaticChart()
-		#	cplotter.run(c.leak_v20,p1=True,p2=True)
-		#	leak_results = cplotter.getReturn()
-		#else:
-		#	leak_results = c.leak_v20()
-		#leakRate = leak_results[1][5]
-		leakRate = 10
-		c.move_rel_z(50,100,100)
-		if leakRate < 20.0:
-			DPC.runStat = True
-			tare()
-			align(1,'D10',-100)
-			lld.findSurface(-170,tip=tip)
-			if tip==1000: c.move_rel_z(-5,10,100)
-			#if tip == 1000: c.p.select_flow_sensor(1)
-			c.start_logger(sensorm=2608+8192,openui=False)
-			aspirate(vol)
-			if dpcOn:
-				c.dpc_on(vol_limit=7)
-				c.readConfig(c.p.get_regulator_pid,0,2)
-			
-			pref = c.AverageP2
-			#DPC.__timeCather()
+	def calculateVolLimit(tip,vol):
+		return c.DPCConfig.calculateVolLimit(tip, vol)
 
-			def wait(dur):
-				c.move_rel_z(50,15,1000)
-				t0 = time.perf_counter()
+	@staticmethod
+	def test(tip=20,vol=20,dur=180,dpcOn=True,live=False,leakTest=False):
+		pickstat = picktip(DPC.currentPos,tip=tip)
+		DPC.currentPos = pickstat[1]
+		if leakTest:
+			leakRate = DPC.leakTest()
+			printy(f"Leak Rate: {leakRate}")
+			print('Stabilizing..')
+			time.sleep(5) # after leak test, you have to stabilize the sensor to avoid any errors
+		tare()
+		DPC.runStat = True
+		align(1,'D10',-100)
+		lld.findSurface(-170,tip=tip)
+		if tip == 1000:	
+			if vol > 500: c.move_rel_z(-1.5,10,100)
+			c.p.select_flow_sensor(1)
+		#printy(f'============\n kp: {kp} | ki: {ki} | kd: {kd}\n High Flow: {highFlow} | volLimit: {vol_limit}\n============')			
+		c.start_logger(sensorm=2608+8192,openui=False)
+		aspirate(vol)
+		if dpcOn:
+			DPC.on(tip=tip, vol=vol)
+			c.readConfig(c.p.get_regulator_pid,0,2)
+		actual_pref = c.AverageP2
+		pref = c.AverageP2 - (c.Max_p2 - c.Min_p2)
+
+		#splotter.resetStaticChart()
+		#splotter.addStaticChart('Actual P_Ref',actual_pref,copyScaling='p2')
+		#splotter.addStaticChart('Fake P_Ref',pref,copyScaling='p2')
+		#splotter.resetVariables()
+		#splotter.liveplot(p1=True,p2=True,valve=True,limit=300)
+		#DPC.__timeCather()
+
+		def wait(dur):
+			c.move_rel_z(50,15,1000)
+			t0 = time.perf_counter()
+			now = time.perf_counter()
+			printy('Press alt+ESC to abort..')
+			while now-t0 < dur:
 				now = time.perf_counter()
-				while now-t0 < dur:
-					now = time.perf_counter()
-					DPC.counter = now - t0
-					printy(' elapsed: {}s end in {}s\t'.format(int(DPC.counter), dur), end='\r')
-					if kb.is_pressed('ESC'):
-						printy('\nelapsed: {}s end in {}s\t'.format(int(DPC.counter), dur))
-						printr('DPC Test Aborted')
-						break
+				DPC.counter = now - t0
+				printy(' elapsed: {}s end in {}s\t'.format(int(DPC.counter), dur), end='\r')
+				if kb.is_pressed('alt+ESC'):
+					printy('\nelapsed: {}s end in {}s\t'.format(int(DPC.counter), dur))
+					printr('DPC Test Aborted')
+					break
 
-			# Liveplotter
-			if live:
-				cplotter.resetStaticChart()
-				cplotter.addStaticChart('P2 Ref',pref,copyScaling='p2')
-				cplotter.resetVarPack()
-				cplotter.setSensor(p1=True,p2=True,valve=True)
-				cplotter.run(wait, dur)
-				cplotter.resetStaticChart()
-			else:
-				wait(dur)
-
-			winsound.Beep(1300,1000)
-			lld.findSurface(-170,lld='wet',tip=tip)
-			if dpcOn: c.dpc_off()
-			dispense(vol*1.2)
-			#if tip == 1000: c.p.select_flow_sensor(0)
-			c.stop_logger()
-			DPC.runStat = False
-			c.move_rel_z(50,100,100)
-			#printy(f'Occured at {DPC.mTime}s') if DPC.mTime else printy('Nothing!')
-			time.sleep(2)
-			DPC.readLog(c.file_name, pref)
-
-			#align(2,'D10',-10)
-			#lld.findSurface(-190,lld='wet')
-			#c.leak_v20()
-			if tip == 1000: 
-				eject(ejectpos='H5',tip=1000)
-			else:
-				eject()
-			c.move_rel_z(50,100,100)
+		# Liveplotter
+		if live:
+			splotter.resetStaticChart()
+			splotter.addStaticChart('Actual P_Ref',actual_pref,copyScaling='p2')
+			splotter.addStaticChart('Fake P_Ref',pref,copyScaling='p2')
+			splotter.resetVariables()
+			splotter.setSensor(p1=True,p2=True,valve=True,limit=300)
+			splotter.run(wait, dur)
 		else:
-			printr('DPC Test Failed: Leak Rate too High!')
+			wait(dur)
+
+		winsound.Beep(1300,1000)
+		lld.findSurface(-170,lld='wet',tip=tip)
+		if dpcOn: c.dpc_off()
+		if tip == 1000: c.p.select_flow_sensor(1)
+		dispense(vol*1.2)
+		if tip == 1000: c.p.select_flow_sensor(0)
+		c.stop_logger()
+		DPC.runStat = False			
+		c.move_rel_z(20,100,500)
+		#dispense(vol*3)
+		c.move_rel_z(30,100,500)
+		time.sleep(2)
+		if leakTest:
+			leakRate = DPC.leakTest()
+			printy(f"Leak Rate: {leakRate}")
+		DPC.readLog(c.file_name, pref, actual_pref)
+		eject(ejectpos=pickstat[2],tip=tip)
+		c.start_flow(100,5)
+		c.move_rel_z(50,100,500)
+
+	@staticmethod
+	def leakTest():
+		align(2,'D10',-30)
+		lld.findSurface(-190,lld='wet')
+		c.move_rel_z(-0.7,10,10)
+		leak_results = c.leak_v20()
+		leakRate = leak_results[1][5]
+		c.move_rel_z(30,100,500)
+		return leakRate
 
 	@staticmethod
 	def __timeCather():
@@ -2566,7 +2583,7 @@ class DPC():
 		t.start()
 
 	@staticmethod
-	def readLog(filename=None,pref=None):
+	def readLog(filename=None,pref=None,actual_pref=None):
 		if not filename:
 			root = tk.Tk()
 			filename = fd.askopenfilename(initialdir=os.getcwd()+"/FirmwareLog")
@@ -2578,7 +2595,6 @@ class DPC():
 		p1 = [float(i) for i in df['Pressure_P1'][:len(df)-2]]
 		p2 = [float(i) for i in df['Pressure_P2'][:len(df)-2]]        
 		valve =  df['Valve_in_open'][:len(df)-2]
-		#control = df['Preg_control_out'][:len(df)-2]        
 
 		# main Plot
 		sns.set()
@@ -2605,15 +2621,19 @@ class DPC():
 		devp1 = p1[dpcStart[1]:dpcEnd[1]]
 		devp2 = p2[dpcStart[1]:dpcEnd[1]]
 		print('Detected Pref:', devp2[0])
-		if not pref: pref = devp2[0]
-		avgDevs = round(np.average([abs(pref-i) for i in devp2]),3)
+		if not pref: pref = devp2[0] - 0.3
+		avgDevs1 = round(np.average([abs(pref-i) for i in devp2]),3)
+		if not actual_pref: actual_pref = devp2[0]
+		avgDevs2 = round(np.average([abs(actual_pref-i) for i in devp2]),3)
 
 		# Deviation chart
-		ax2.title.set_text(f'DPC Chart | Avg Dev = {avgDevs} mbar')
+		ax2.title.set_text(f'DPC Chart | Avg Dev: Actual = {avgDevs2} ~ Fake = {avgDevs1}')
 		ax2.plot(devtick, devp1, label='P1')
 		ax2.plot(devtick, devp2, label='P2')
 		pline = [pref]*len(devtick)
-		ax2.plot(devtick,pline, '--', label='DPC Press Ref')
+		ax2.plot(devtick,pline, 'r--', label='Fake DPC P_Ref')
+		fline = [actual_pref]*len(devtick)
+		ax2.plot(devtick,fline, 'g--', label='Actual DPC P_Ref')
 		ax2.legend(loc='lower right')
 		plt.show()
 

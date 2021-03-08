@@ -350,6 +350,30 @@ class SPlotter():
 		for var in self.varPack:
 			print(var,'\t:', f' Plot: {self.varPack[var][showStat]} | Scale: {self.varPack[var][scale]} | Offset: {self.varPack[var][offset]}')
 
+	@staticmethod # Dont touch this, this function to generate the new config on folder
+	def generateConfig(self):
+		if 'PlotterLog' not in os.listdir(os.getcwd()): 
+			os.system("mkdir PlotterLog")
+		if "splotterConfig" not in os.listdir(os.getcwd()):
+			os.system("mkdir splotterConfig")
+			os.chdir("splotterConfig")
+			f = open('plotStat.flo','w'); f.write('1'); f.close()
+			f = open('data.flo','w'); f.write('0,0,0,0,0,0,0'); f.close()
+			os.chdir('..')
+		config = {"varPack":{
+						"valve": [[], "valve (OFF: 930 | ON: 935)", false, 5, 930],
+						"travel": [[], "travel", false, 1, 0],
+						"vel": [[], "vel", false, 1, 0],
+						"acc": [[], "acc", false, 1, 0],
+						"col": [[], "col", false, 1, 0],
+						"res": [[], "res", false, 1, 0],
+						"p1": [[], "p1", false, 1, 0],
+						"p2": [[], "p2", false, 1, 0]},
+					"staticVar":{},
+					"limit":250}
+		with open('splotterConfig/originalConfig.json','w') as f1: json.dump(config, f1)
+		with open('splotterConfig/Config.json','w') as f2: json.dump(config, f2)
+
 
 if __name__ == '__main__':
 	ghost = SPlotter(None)

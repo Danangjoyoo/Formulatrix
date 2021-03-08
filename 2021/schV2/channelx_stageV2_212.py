@@ -1069,13 +1069,13 @@ def dpc_on(vol_limit=5):
 	'''
 	Make sure do DPC On after aspirate
 	'''
-	global AverageP2
+	global AverageP2,Max_p2,Min_p2
 	time.sleep(0.2)
 	average_pressure(100)
-	p_dpc = AverageP2
+	p_dpc = AverageP2 - (Max_p2 - Min_p2)
+	#p_dpc = AverageP2
 	p.start_regulator_mode(1,p_dpc,2,True,vol_limit)
-
-	print("DPC ON at P2 = {}".format(p_dpc))
+	printg("DPC ON at P2 = {} with Vol Limit = {}".format(round(p_dpc,2), round(vol_limit,2)))
 	return p_dpc
 
 def dpc_off():
@@ -2596,7 +2596,7 @@ class PicktipConfig:
 	picktipOffset = -0.1
 	retractAcc = 100
 	retractVel = 100
-	retractDist = {20: 60, 200: 70, 1000: 100}
+	retractDist = {20: 60, 200: 70, 1000: 110}
 	waitPosOffset = 5
 	delayBeforeValidate = 100/1000.0
 	colThres = 30
@@ -2753,6 +2753,21 @@ class chipCalibrationConfig():
 	upperLimit = 5.0
 	lowerLimit = -200.0
 	colCompressTolerance = 4.0
+
+class DPCConfig():
+	kp = {20: 0.01,	200: 0.01, 	1000: 0.08}
+	ki = {20: 0, 	200: 0, 	1000: 0}
+	kd = {20: 0, 	200: 0, 	1000: 0.004}
+
+	@staticmethod
+	def calculateVolLimit(tip,vol):
+		# Carefull with the volume higher than maximum
+		if tip == 20: # Max 25 uL | limit range 15 - 7 uL
+			return 20-(abs(vol)*0.48)
+		elif tip == 200: # Max 210 uL | limit range 50 - 7 uL
+			return 50-(abs(vol)*0.20476190476190476)
+		elif tip == 1000: # Max 1050 uL | limit range 200 - 7 uL
+			return 200-(abs(vol)*0.1838095238095238)
 
 def setUp_plld(tip=20, lowSpeed=False, detectMode=0):
 	printg(f'Setting Up PLLD for P{tip} | Flow: {PLLDConfig.flow[tip]} | Pthres: {PLLDConfig.pressThres[tip]}')
@@ -2942,11 +2957,17 @@ class ReadSensor():
 	def ptemp2(self): return p.read_sensor(SensorID.TEMP_P2)
 	def breach(self): return p.read_sensor(SensorID.BREACH_CAPC)
 	def noiseCheck(self, sensorMask, sample=1000):
-		thread_logger(sensorm=sensorMask,maxTick=1000,openui=False)
-		df = pd.read_csv(globals()['file_name'])
-		key = globals()['STRING_SENSOR_MASK'][(sensorMask>>1)]
+		thread_logger(sensorm=sensorMask,maxTick=1000,openui=False)		
+		fname = globals()['file_name']
+		for i in range(0,15):
+			if sensorMask & (1 << i) != 0 : idxKey = i
+		df = pd.read_csv(fname)
+		key = globals()['STRING_SENSOR_MASK'][idxKey]
 		amps = max(df[key]) - min(df[key])
-		return amps, min(df[key]), max(df[key])
+		os.chdir('FirmwareLog')
+		os.remove(fname.split('/')[1])
+		os.chdir('..')
+		return amps
 	def sampling(self, sensorMask, sample=1000):
 		thread_logger(sensorm=sensorMask,maxTick=1000,openui=False)
 		df = pd.read_csv(globals()['file_name'])

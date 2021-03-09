@@ -52,7 +52,7 @@ class SPlotter():
 			x = json.load(config); config.close()
 			return x
 
-	def setConfig(self,key,dic):
+	def __setConfig(self,key,dic):
 		recentConf = self.getConfig()
 		with open('splotterConfig/config.json', 'w') as config:
 			recentConf[key] = dic
@@ -65,9 +65,9 @@ class SPlotter():
 				return recentConf[key]
 			else:
 				self.varPack = recentConf['varPack']
-				self.setConfig('varPack',self.varPack)
+				self.__setConfig('varPack',self.varPack)
 				self.staticVar = recentConf['staticVar']
-				self.setConfig('staticVar',self.staticVar)
+				self.__setConfig('staticVar',self.staticVar)
 				self.limit = recentConf['limit']
 				printg("[SPlotter] All config changed to default..")
 
@@ -81,7 +81,7 @@ class SPlotter():
 	@limit.setter
 	def limit(self, val):
 		self.__limit = int(val)
-		self.setConfig('limit', self.__limit)
+		self.__setConfig('limit', self.__limit)
 
 	@limit.getter
 	def getLimit(self):
@@ -97,24 +97,27 @@ class SPlotter():
 		try:	
 			with open('splotterConfig/plotStat.flo','w') as f:
 				f.write(str(int(bool(state))))
-		except:
-			pass
+		except: pass
 
 	@plotStat.getter
 	def getplotStat(self):
-		with open('splotterConfig/plotStat.flo','r') as f:
-			stat = bool(int(f.read()))
-			self.__plotStat = True if stat else False
+		for i in range(10):
+			try:
+				with open('splotterConfig/plotStat.flo','r') as f:
+					stat = bool(int(f.read()))
+					self.__plotStat = True if stat else False
+					break
+			except: pass
 		return self.__plotStat
 
-	def sendValue(self,*vals):
+	def __sendValue(self,*vals):
 		s = ''
 		with open('splotterConfig/data.flo','w') as file:
 			for i, data in enumerate(vals):
 				s += str(data) + ',' if i+1 < len(vals) else str(data)
 			file.write(s)
 
-	def receiveValue(self):
+	def __receiveValue(self):
 		try:
 			with open('splotterConfig/data.flo','r') as file:
 				data = file.read()
@@ -138,7 +141,7 @@ class SPlotter():
 				else:
 					self.quit = True
 				self.liveplot()
-				self.execute()
+				self.__execute()
 			else:
 				printr('Please input function!')
 		else:
@@ -147,13 +150,14 @@ class SPlotter():
 			self.resetVariables()
 			printg('Live Plotter Finished.. ')
 
-	def execute(self):
+	def __execute(self):
 		time.sleep(2)
 		self.funcReturn = self.func(*self.args) if self.args else self.func()
 		time.sleep(2)
-		if self.quit: self.plotStat = False
+		if self.quit: 
+			self.terminate()
 
-	def shadowProcess(self): # Conventional Multiprocessing, you cant grab anything from the shadow xD
+	def __shadowProcess(self): # Conventional Multiprocessing, you cant grab anything from the shadow xD
 		printb("Shadow Plotter initialized..")
 		def shade(): os.system(f"python3 {__name__}.py")
 		shadowThread = threading.Thread(target=shade)
@@ -166,9 +170,9 @@ class SPlotter():
 		if self.object:
 			self.plotStat = True
 			self.setSensor(*s,**show)
-			self.thread1 = threading.Thread(target=self.autoUpdate)
+			self.thread1 = threading.Thread(target=self.__autoUpdate)
 			self.thread1.start()
-			self.shadowProcess()
+			self.__shadowProcess()
 		else:
 			self.init = True
 			self.plotStat = True
@@ -198,10 +202,10 @@ class SPlotter():
 				if self.varPack[key][showStat]:
 					self.varPack[key].append(self.wiplot.plot(pen=self.colors[i], name=self.labels[i]))
 			if self.staticVar:
-				for var in self.staticVar: self.staticVar[var].append(self.wiplot.plot(pen=tuple(np.random.randint(100,255,3)), name=var))
-			self.writeLog(['tick','time',*self.varPack.keys()])
+				for var in self.staticVar: self.staticVar[var].append(self.wiplot.plot(pen=self.staticVar[var][5], name=var))
+			self.__writeLog(['tick','time',*self.varPack.keys()])
 			self.timer = QtCore.QTimer()
-			self.timer.timeout.connect(self.autoUpdate)
+			self.timer.timeout.connect(self.__autoUpdate)
 			self.timer.start(0)
 			QtGui.QApplication.instance().exec_()
 			self.terminate()
@@ -212,9 +216,9 @@ class SPlotter():
 			if self.staticVar:
 				for var in self.staticVar: 
 					self.staticVar[var][0] = []
-					self.staticVar[var].pop(plotClass)
+					self.staticVar[var].pop(-1)
 
-	def autoUpdate(self):
+	def __autoUpdate(self):
 		container, label, showStat, scale, offset, plotClass = 0, 1, 2, 3, 4, 5         
 		t1 = time.perf_counter()
 		if self.object:
@@ -248,11 +252,11 @@ class SPlotter():
 				p2 = self.object.read_sensor(7)
 				valve = int(self.object.get_valve())
 				vals = [valve, self.current_travel, self.current_vel, self.current_acc, col, res, p1, p2]
-				self.sendValue(*vals)
+				self.__sendValue(*vals)
 				t1 = time.perf_counter()
 		else:
 			if self.plotStat:
-				vals = self.receiveValue()
+				vals = self.__receiveValue()
 				# set limit
 				if len(self.varPack['travel'][0]) > self.limit:
 					for var in self.varPack: self.varPack[var][0].pop(0)
@@ -267,11 +271,11 @@ class SPlotter():
 				# start to plot
 				for var in self.varPack: self.varPack[var][plotClass].setData(self.x,self.varPack[var][container]) if self.varPack[var][showStat] else None
 				if self.staticVar:
-					for var in self.staticVar: self.staticVar[var][plotClass].setData(self.x, self.staticVar[var][container])
+					for var in self.staticVar: self.staticVar[var][-1].setData(self.x, self.staticVar[var][container])
 				# end of plotting ======================= save to logs
 				self.n += 1
 				spd = round((time.perf_counter() - t1)*1000.0,1)
-				self.writeLog([self.n,round(time.perf_counter(),2),*vals])
+				self.__writeLog([self.n,round(time.perf_counter(),2),*vals])
 				self.wiplot.setLabel('top',f'{spd} ms/tick')
 			else:
 				self.terminate()
@@ -284,7 +288,7 @@ class SPlotter():
 		except:
 			pass
 
-	def writeLog(self,vals):
+	def __writeLog(self,vals):
 		dataStr = ''
 		with open(self.logname, 'a') as f:
 			for val in vals: dataStr += str(val)+','
@@ -293,12 +297,12 @@ class SPlotter():
 	def resetVariables(self):
 		self.varPack = self.resetConfig('varPack')
 
-	def addStaticChart(self,key,val,scale=1,offset=0,copyScaling=None):
+	def addStaticChart(self,key,val,scale=1,offset=0,color=[int(i) for i in np.random.randint(50,255,3)],copyScaling=None):
 		if copyScaling:
-			self.staticVar[key+'(static)'] = [[], val,  True, self.varPack[copyScaling][3], self.varPack[copyScaling][4]]
+			self.staticVar[key+' (static)'] = [[], val,  True, self.varPack[copyScaling][3], self.varPack[copyScaling][4], color]
 		else:
-			self.staticVar[key+'(static)'] = [[], val,  True, scale, offset]
-		self.setConfig('staticVar',self.staticVar)
+			self.staticVar[key+' (static)'] = [[], val,  True, scale, offset, color]
+		self.__setConfig('staticVar',self.staticVar)
 
 	def resetStaticChart(self):
 		self.staticVar = self.resetConfig('staticVar')
@@ -312,15 +316,15 @@ class SPlotter():
 					if type(sens[sensor]) == tuple:
 						self.varPack[sensor][showStat], self.varPack[sensor][scale], self.varPack[sensor][offset] = sens[sensor]
 					else:
-						self.varPack[sensor][showStat] = sens[sensor]
-					print(sensor+" plot enabled")
+						self.varPack[sensor][showStat] = sens[sensor]					
+					if self.varPack[sensor][showStat]: print(sensor+" plot enabled")
 		if s:
 			for var in self.varPack:
 				if 7 in s: 
 					self.varPack[var][showStat] = True
 				else: 
 					self.varPack[var][showStat] = True if var in s else self.varPack[var][showStat]
-		self.setConfig('varPack',self.varPack)
+		self.__setConfig('varPack',self.varPack)
 
 	def setScale(self,**vars): # untuk scaling chart
 		container, label, showStat, scale = 0, 1, 2, 3
@@ -329,7 +333,7 @@ class SPlotter():
 				if var in self.varPack:
 					self.varPack[var][scale] = vars[var]
 					print(var+"'s scale:", vars[var])
-			self.setConfig('varPack',self.varPack)
+			self.__setConfig('varPack',self.varPack)
 		else:
 			print('No Scale is Changed')
 
@@ -340,7 +344,7 @@ class SPlotter():
 				if var in self.varPack:
 					self.varPack[var][offset] = vars[var]
 					print(var+"'s offset:", vars[var])
-			self.setConfig('varPack',self.varPack)
+			self.__setConfig('varPack',self.varPack)
 		else:
 			print('No Offset is Changed')
 

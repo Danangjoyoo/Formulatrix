@@ -1,4 +1,4 @@
-### Script Version : v2021.3.8.205732
+### Script Version : v2021.3.9.201513
 from misc import *
 import FloDeck_stageV2_212 as deck
 import pregx as pr
@@ -29,7 +29,7 @@ P200_picktip_z = -126
 P20_picktip_z = -136
 #Zpick   = [-114,-104]
 
-pick_targets    = {20: -199.5, 200: -190.5, 1000: -143.5}
+pick_targets    = {20: -199, 200: -190.5, 1000: -143.5}
 asp_targets     = {20: -170, 200: -160, 1000: -110}
 dsp_targets     = {20: -120, 200: -130, 1000: -80}
 safes           = {20: -95, 200: -85, 1000: -20}
@@ -2445,21 +2445,11 @@ class mainLLT():
 
 llt = mainLLT
 
-def ccpread(tip):
-	lld.findSurface(-190,tip=tip)
-	print('surface', c.sensing.res())
-	t0 = time.perf_counter()
-	now = 0
-	while now - t0 < 5:
-		print(now-t0, c.sensing.res())
-		if now == 0: llt.preReading(-1)
-		now = time.perf_counter()
-
 class DPC():
 	mTime = 0
 	counter = None
 	runStat = False
-	currentPos = 'C1'
+	currentPos = 'A1'
 	pickedTip = False
 
 	@staticmethod
@@ -2467,6 +2457,7 @@ class DPC():
 	# make sure you tare pressure completed before start dpc
 	# make sure the tip isn't went to deep, activate the LLT resistance is recommended before runnIng DPC
 	# the tip depth effect the drip possibilities on the tip
+		#c.knalimit = False
 		c.p.select_flow_sensor(0)
 		kp = c.DPCConfig.kp[tip]
 		ki = c.DPCConfig.ki[tip]
@@ -2474,9 +2465,10 @@ class DPC():
 		c.p.set_regulator_pid(0,2,kp,ki,kd,0.2)
 		volLimit = c.DPCConfig.calculateVolLimit(tip=tip,vol=vol)
 		c.dpc_on(volLimit)
+		c.readConfig(c.p.get_regulator_pid,0,2)
 
 	@staticmethod
-	def off(): c.dpc_off()	
+	def off(): c.dpc_off()
 
 	@staticmethod
 	def getPid():
@@ -2497,26 +2489,17 @@ class DPC():
 			time.sleep(5) # after leak test, you have to stabilize the sensor to avoid any errors
 		tare()
 		DPC.runStat = True
-		align(1,'D10',-100)
+		align(1,'D10',globals()['asp_targets'][tip]+30)
 		lld.findSurface(-170,tip=tip)
 		if tip == 1000:	
 			if vol > 500: c.move_rel_z(-1.5,10,100)
-			c.p.select_flow_sensor(1)
-		#printy(f'============\n kp: {kp} | ki: {ki} | kd: {kd}\n High Flow: {highFlow} | volLimit: {vol_limit}\n============')			
+			c.p.select_flow_sensor(1)		
 		c.start_logger(sensorm=2608+8192,openui=False)
 		aspirate(vol)
 		if dpcOn:
 			DPC.on(tip=tip, vol=vol)
-			c.readConfig(c.p.get_regulator_pid,0,2)
 		actual_pref = c.AverageP2
 		pref = c.AverageP2 - (c.Max_p2 - c.Min_p2)
-
-		#splotter.resetStaticChart()
-		#splotter.addStaticChart('Actual P_Ref',actual_pref,copyScaling='p2')
-		#splotter.addStaticChart('Fake P_Ref',pref,copyScaling='p2')
-		#splotter.resetVariables()
-		#splotter.liveplot(p1=True,p2=True,valve=True,limit=300)
-		#DPC.__timeCather()
 
 		def wait(dur):
 			c.move_rel_z(50,15,1000)
@@ -2535,8 +2518,8 @@ class DPC():
 		# Liveplotter
 		if live:
 			splotter.resetStaticChart()
-			splotter.addStaticChart('Actual P_Ref',actual_pref,copyScaling='p2')
-			splotter.addStaticChart('Fake P_Ref',pref,copyScaling='p2')
+			splotter.addStaticChart('Actual P_Ref',actual_pref,color=(250,20,240),copyScaling='p2')
+			splotter.addStaticChart('Fake P_Ref',pref,color=(250,200,40),copyScaling='p2')
 			splotter.resetVariables()
 			splotter.setSensor(p1=True,p2=True,valve=True,limit=300)
 			splotter.run(wait, dur)
@@ -2550,7 +2533,7 @@ class DPC():
 		dispense(vol*1.2)
 		if tip == 1000: c.p.select_flow_sensor(0)
 		c.stop_logger()
-		DPC.runStat = False			
+		DPC.runStat = False
 		c.move_rel_z(20,100,500)
 		#dispense(vol*3)
 		c.move_rel_z(30,100,500)
@@ -2562,6 +2545,8 @@ class DPC():
 		eject(ejectpos=pickstat[2],tip=tip)
 		c.start_flow(100,5)
 		c.move_rel_z(50,100,500)
+		dispense(1000)
+		printg('DPC Test Done')
 
 	@staticmethod
 	def leakTest():

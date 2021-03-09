@@ -604,7 +604,11 @@ def handle_on_regulate_pressure_aborted():
 def handle_motor_move_started(motor_id):
 	print("Motor Move Started on id " + str(motor_id))
 
+knalimit=False
+
 def handle_on_regulate_pressure_limit_reach():
+	global knalimit
+	knalimit=True
 	print("Regulate pressure function volume reached")
 
 P2_valve_close = None
@@ -2755,14 +2759,17 @@ class chipCalibrationConfig():
 	colCompressTolerance = 4.0
 
 class DPCConfig():
-	kp = {20: 0.01,	200: 0.01, 	1000: 0.08}
-	ki = {20: 0, 	200: 0, 	1000: 0}
-	kd = {20: 0, 	200: 0, 	1000: 0.004}
+	#kp = {20: 0.01, 	200: 0.03875, 	1000: 0.08}
+	#ki = {20: 0.000001, 200: 0, 		1000: 0}
+	#kd = {20: 0.0005, 	200: 0, 		1000: 0.004}
+	kp = {20: 0.05, 	200: 0.05, 			1000: 0.05}
+	ki = {20: 0.000001, 200: 0.000001, 		1000: 0.000001}
+	kd = {20: 0.0005, 	200: 0.0005, 		1000: 0.0005}
 
 	@staticmethod
 	def calculateVolLimit(tip,vol):
 		# Carefull with the volume higher than maximum
-		if tip == 20: # Max 25 uL | limit range 15 - 7 uL
+		if tip == 20: # Max 25 uL | limit range 20 - 8 uL
 			return 20-(abs(vol)*0.48)
 		elif tip == 200: # Max 210 uL | limit range 50 - 7 uL
 			return 50-(abs(vol)*0.20476190476190476)

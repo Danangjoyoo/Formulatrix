@@ -394,9 +394,6 @@ def handle_tare_done(atm_pressure,dp_offset,temp1,temp2,cal_asp,cal_dsp):
 	global Tare_done
 	global CAL_ASP
 	global CAL_DSP
-
-
-
 	ATM_pressure = atm_pressure
 	Dp_Offset = dp_offset
 	Temp_P1 = temp1
@@ -1135,7 +1132,7 @@ def aspirate_2(vol,flow,log=0,timeout=2000):
 	#p.set_abort_config(7,0,512,0,0)
 	if log == 1: start_logger()
 	time.sleep(1)
-	start_pipetting(-1*vol, flow,flow,200,timeout,0)
+	start_pipetting(-1*vol, flow,flow,200,timeout)
 	time.sleep(1)
 	if log == 1: stop_logger()
 
@@ -1341,10 +1338,13 @@ def test_extra_vol_asp2(flows,volume=100):
 		#print "flow:" + str(flow) + ", End Flow:" + str(end_flow)
 		tare_pressure()
 		print("Generate flow: ",flow)
-		aspirate_2(volume,flow)
+		#aspirate_2(volume,flow)
+		aspirate(volume, flow)
 		time.sleep(2)
 		extra_p1_off_asp.append(P1_off)
-		extra_vol_asp.append(Sensed_vol+volume)
+		print(type(Sensed_vol), 'sensvol')
+		print(type(volume), 'vol')
+		extra_vol_asp.append(float(Sensed_vol)+volume)
 
 	print("finish extra aspirate test")
 	extra_asp=calculate_linear_scale_offset(extra_p1_off_asp,extra_vol_asp)
@@ -1371,7 +1371,7 @@ def test_extra_vol_dsp2(flows,volume=100):
 		dispense_2(volume,flow)
 		time.sleep(2)
 		extra_p1_off_dsp.append(P1_off)
-		extra_vol_dsp.append(Sensed_vol-volume)
+		extra_vol_dsp.append(float(Sensed_vol)-volume)
 		
 
 	print("finish extra dispense test")
@@ -1401,6 +1401,7 @@ def extra_vol_test(flows=[15,20,50,100,150],volume=100):
 	#set_plug(0)
 	abort_flow()
 	tare_pressure()
+	time.sleep(1)
 	test_extra_vol_asp2(flows,volume)
 
 	print("Ext_asp scale: ",extra_asp[0], " ","offset",extra_asp[1])
@@ -2773,8 +2774,8 @@ class DPCConfig():
 			return 20-(abs(vol)*0.48)
 		elif tip == 200: # Max 210 uL | limit range 50 - 7 uL
 			return 50-(abs(vol)*0.20476190476190476)
-		elif tip == 1000: # Max 1050 uL | limit range 200 - 7 uL
-			return 200-(abs(vol)*0.1838095238095238)
+		elif tip == 1000: # Max 1050 uL | limit range 250 - 15 uL
+			return 250-(abs(vol)*0.22380952380952382)
 
 def setUp_plld(tip=20, lowSpeed=False, detectMode=0):
 	printg(f'Setting Up PLLD for P{tip} | Flow: {PLLDConfig.flow[tip]} | Pthres: {PLLDConfig.pressThres[tip]}')

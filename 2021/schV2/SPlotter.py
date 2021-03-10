@@ -20,6 +20,7 @@ class SPlotter():
 		self.object = obj
 		self.init = False
 		self.__plotStat = False
+		self.__transmitterStat = False
 		self.init_t = time.time()
 		self.avgTime = []
 		self.x = []
@@ -28,6 +29,7 @@ class SPlotter():
 		self.funcReturn = None
 		self.args = None
 		self.quit = True
+		self.__clean = True
 		self.win = None
 		self.current_t = 0
 		self.before_t = 0
@@ -94,7 +96,7 @@ class SPlotter():
 	@plotStat.setter
 	def plotStat(self, state):
 		self.__plotStat = state
-		try:	
+		try:
 			with open('splotterConfig/plotStat.flo','w') as f:
 				f.write(str(int(bool(state))))
 		except: pass
@@ -110,6 +112,26 @@ class SPlotter():
 			except: pass
 		return self.__plotStat
 
+	@property
+	def transmitterStat(self):
+		return self.getTransmitterStat
+
+	@transmitterStat.setter
+	def transmitterStat(self, state):
+		try:
+			with open('splotterConfig/transmitter.flo','w') as f:
+				f.write(str(int(bool(state))))
+		except: pass
+
+	@transmitterStat.getter
+	def getTransmitterStat(self):
+		try:
+			with open('splotterConfig/transmitter.flo','r') as f:
+				stat = bool(int(f.read()))
+				self.__transmitterStat = True if stat else False
+		except: pass
+		return self.__transmitterStat	
+
 	def __sendValue(self,*vals):
 		s = ''
 		with open('splotterConfig/data.flo','w') as file:
@@ -122,7 +144,7 @@ class SPlotter():
 			with open('splotterConfig/data.flo','r') as file:
 				data = file.read()
 				data = data.split(',')
-			if len(data) == 8:
+			if len(data) == 10:
 				self.lastVals = [float(i) for i in data]
 		except:
 			pass
@@ -162,6 +184,7 @@ class SPlotter():
 		def shade(): os.system(f"python3 {__name__}.py")
 		shadowThread = threading.Thread(target=shade)
 		shadowThread.start()
+		time.sleep(2)
 
 	def getReturn(self):
 		return self.funcReturn
@@ -173,11 +196,12 @@ class SPlotter():
 			self.thread1 = threading.Thread(target=self.__autoUpdate)
 			self.thread1.start()
 			self.__shadowProcess()
+			if self.__clean: self.default()
 		else:
 			self.init = True
 			self.plotStat = True
 			self.win = pg.GraphicsLayoutWidget(show=True)
-			self.win.resize(1000,600)
+			self.win.resize(800,400)
 			self.win.setWindowTitle('Live Plotter')
 			self.wiplot = self.win.addPlot(title='SPlotter')
 			self.wiplot.addLegend()
@@ -194,9 +218,9 @@ class SPlotter():
 			self.x = []
 			self.n = 1
 			container, label, showStat, scale, offset, plotClass = 0, 1, 2, 3, 4, 5			
-			labelValve, labelTravel, labelVel, labelAcc, labelCol, labelRes, labelP1, labelP2 = [None for i in range(8)]
-			self.labels = [labelValve, labelTravel, labelVel, labelAcc, labelCol, labelRes, labelP1, labelP2]
-			self.colors = [(247,169,169),(255,150,25),'y','b','g','c',(100,40,250),(220,60,19)]
+			labelValve, labelTravel, labelVel, labelAcc, labelCol, labelRes, labelP1, labelP2, labelTemp1, labelTemp2 = [None for i in range(10)]
+			self.labels = [labelValve, labelTravel, labelVel, labelAcc, labelCol, labelRes, labelP1, labelP2, labelTemp1, labelTemp2]
+			self.colors = [(247,169,169),(255,150,25),'y','b','g','c',(100,40,250),(220,60,19),(230,20,10),(230,200,80)]
 			for i, key in enumerate(self.varPack.keys()): 
 				self.labels[i] = self.varPack[key][label] if (self.varPack[key][scale] == 1 and not self.varPack[key][offset]) else self.varPack[key][label]+' (scaled)'
 				if self.varPack[key][showStat]:
@@ -222,38 +246,43 @@ class SPlotter():
 		container, label, showStat, scale, offset, plotClass = 0, 1, 2, 3, 4, 5         
 		t1 = time.perf_counter()
 		if self.object:
-			while self.plotStat:
-				# start to add data =======================
-				if self.init:
-					self.init_t = time.perf_counter()
-					self.current_t = time.perf_counter() - self.init_t
-					self.before_t = 0
-					self.init_travel = abs(self.object.get_encoder_position(0))
-					self.before_travel = 0
-					self.current_vel = 0
-					self.before_vel = 0
-					self.current_acc = 0
-					self.before_acc = 0
-					self.init = False
-					time.sleep(0.1)
-				# Movement
-				self.current_t = round(time.perf_counter() - self.init_t, 3)
-				self.current_travel = abs(self.object.get_encoder_position(0))-self.init_travel
-				self.current_vel = (self.current_travel-self.before_travel)/(self.current_t-self.before_t)
-				self.current_acc = (self.current_vel - self.before_vel)/(self.current_t-self.before_t)
-				self.before_t = self.current_t
-				self.before_travel = self.current_travel
-				self.before_vel = self.current_vel
-				self.before_acc = self.current_acc
-				# Sensors
-				col = self.object.read_sensor(1)
-				res = self.object.read_sensor(0)
-				p1 = self.object.read_sensor(6)
-				p2 = self.object.read_sensor(7)
-				valve = int(self.object.get_valve())
-				vals = [valve, self.current_travel, self.current_vel, self.current_acc, col, res, p1, p2]
-				self.__sendValue(*vals)
-				t1 = time.perf_counter()
+			if not self.transmitterStat:
+				self.transmitterStat = True
+				while self.plotStat:
+					# start to add data =======================
+					if self.init:
+						self.init_t = time.perf_counter()
+						self.current_t = time.perf_counter() - self.init_t
+						self.before_t = 0
+						self.init_travel = abs(self.object.get_encoder_position(0))
+						self.before_travel = 0
+						self.current_vel = 0
+						self.before_vel = 0
+						self.current_acc = 0
+						self.before_acc = 0
+						self.init = False
+						time.sleep(0.1)
+					# Movement
+					self.current_t = round(time.perf_counter() - self.init_t, 3)
+					self.current_travel = abs(self.object.get_encoder_position(0))-self.init_travel
+					self.current_vel = (self.current_travel-self.before_travel)/(self.current_t-self.before_t)
+					self.current_acc = (self.current_vel - self.before_vel)/(self.current_t-self.before_t)
+					self.before_t = self.current_t
+					self.before_travel = self.current_travel
+					self.before_vel = self.current_vel
+					self.before_acc = self.current_acc
+					# Sensors
+					valve = int(self.object.get_valve())
+					col = self.object.read_sensor(1)
+					res = self.object.read_sensor(0)
+					p1 = self.object.read_sensor(6)
+					p2 = self.object.read_sensor(7)
+					temp1 = self.object.read_sensor(4)
+					temp2 = self.object.read_sensor(5)
+					vals = [valve, self.current_travel, self.current_vel, self.current_acc, col, res, p1, p2, temp1, temp2]
+					self.__sendValue(*vals)
+					t1 = time.perf_counter()
+				if self.__clean: self.default()
 		else:
 			if self.plotStat:
 				vals = self.__receiveValue()
@@ -281,7 +310,8 @@ class SPlotter():
 				self.terminate()
 
 	def terminate(self):		
-		self.plotStat = False		
+		self.plotStat = False	
+		self.transmitterStat = False	
 		try:
 			self.timer.stop()
 			self.win.close()
@@ -309,6 +339,10 @@ class SPlotter():
 
 	def setSensor(self,*s,**sens): # untuk set sensor dari terminal dan limit
 		container, label, showStat, scale, offset = 0, 1, 2, 3, 4
+		if 'clean' in sens: 
+			if sens['clean']: self.__clean = True
+			else: self.__clean = False
+		if self.__clean: self.default()
 		if 'limit' in sens: self.limit = sens['limit']
 		if sens:
 			for sensor in sens:
@@ -364,17 +398,19 @@ class SPlotter():
 			f = open('plotStat.flo','w'); f.write('1'); f.close()
 			f = open('data.flo','w'); f.write('0,0,0,0,0,0,0'); f.close()
 			os.chdir('..')
-		config = {"varPack":{
-						"valve": [[], "valve (OFF: 930 | ON: 935)", false, 5, 930],
-						"travel": [[], "travel", false, 1, 0],
-						"vel": [[], "vel", false, 1, 0],
-						"acc": [[], "acc", false, 1, 0],
-						"col": [[], "col", false, 1, 0],
-						"res": [[], "res", false, 1, 0],
-						"p1": [[], "p1", false, 1, 0],
-						"p2": [[], "p2", false, 1, 0]},
-					"staticVar":{},
-					"limit":250}
+		config ={"varPack":{
+					"valve"	: [[], "valve (OFF: 930 | ON: 935)", false, 5, 930],
+					"travel": [[], "travel", false, 1, 0],
+					"vel"	: [[], "vel", false, 1, 0],
+					"acc"	: [[], "acc", false, 1, 0],
+					"col"	: [[], "col", false, 1, 0],
+					"res"	: [[], "res", false, 1, 0],
+					"p1"	: [[], "p1", false, 1, 0],
+					"p2"	: [[], "p2", false, 1, 0],
+					"temp1"	: [[], "temp1", false, 1, 0],
+					"temp2"	: [[], "temp2", false, 1, 0]},
+				"staticVar":{},
+				"limit":500 }
 		with open('splotterConfig/originalConfig.json','w') as f1: json.dump(config, f1)
 		with open('splotterConfig/Config.json','w') as f2: json.dump(config, f2)
 

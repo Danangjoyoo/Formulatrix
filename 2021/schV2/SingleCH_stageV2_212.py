@@ -1,4 +1,4 @@
-### Script Version : v2021.3.9.201513
+### Script Version : v2021.3.10.143934
 from misc import *
 import FloDeck_stageV2_212 as deck
 import pregx as pr
@@ -2502,7 +2502,7 @@ class DPC():
 		pref = c.AverageP2 - (c.Max_p2 - c.Min_p2)
 
 		def wait(dur):
-			c.move_rel_z(50,15,1000)
+			c.move_rel_z(90,15,1000)
 			t0 = time.perf_counter()
 			now = time.perf_counter()
 			printy('Press alt+ESC to abort..')
@@ -2517,14 +2517,14 @@ class DPC():
 
 		# Liveplotter
 		if live:
-			splotter.resetStaticChart()
-			splotter.addStaticChart('Actual P_Ref',actual_pref,color=(250,20,240),copyScaling='p2')
+			splotter.liveplot(temp1=True,temp2=True)
+			splotter.default()
+			splotter.addStaticChart('Actual P_Ref',actual_pref,color=(50,250,40),copyScaling='p2')
 			splotter.addStaticChart('Fake P_Ref',pref,color=(250,200,40),copyScaling='p2')
-			splotter.resetVariables()
-			splotter.setSensor(p1=True,p2=True,valve=True,limit=300)
-			splotter.run(wait, dur)
-		else:
-			wait(dur)
+			splotter.liveplot(p1=True,p2=True,valve=True,limit=300,clean=False)			
+		
+		wait(dur)
+		splotter.terminate()
 
 		winsound.Beep(1300,1000)
 		lld.findSurface(-170,lld='wet',tip=tip)

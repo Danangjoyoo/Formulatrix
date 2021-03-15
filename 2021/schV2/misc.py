@@ -1,6 +1,6 @@
 ######################### LIBRARY CHECKER #########################
-#Installing required modules/libraries to run FLO V2 Single Channel
-#import LibraryInstaller
+#Installing required modules/libraries (dependencies) to run FLO V2 Single Channel
+#import 
 
 ######################### FOLDER CHECKING #########################
 #Adding required folder if there aren't exist yet

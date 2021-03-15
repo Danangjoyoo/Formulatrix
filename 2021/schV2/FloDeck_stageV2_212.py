@@ -232,7 +232,7 @@ def setZeroDeckMode(tip):
         #zero_deck = [[261,122],[160,122],[59,122]] # UNTUK CADDY P20 COATING
         #zero_deck = [[260,122.5],[160,122],[59,122]] # UNTUK CADDY P20 COATING
     elif tip == 200:
-        zero_deck = [[260.5,122],[160,122],[59,122]] # UNTUK CADDY P200 NONCOATING
+        zero_deck = [[260.5,122.5],[160,122],[59,122]] # UNTUK CADDY P200 NONCOATING
         #zero_deck = [[261.5,122],[160,122],[59,122]] # UNTUK CADDY P200 COATING
     elif tip == 1000:
         zero_deck = [[260,122],[160,122],[59,122]] # UNTUK CADDY P1000 NONCOATING

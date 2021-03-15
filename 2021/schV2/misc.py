@@ -55,7 +55,8 @@ SPlotter --> Safe PyQt Plotter (Manual Multiprocessing)
 - Manual SetUp and reset
 """
 
-from schPlotter2 import *
+#from schPlotter2 import *
+from SPlotter import *
 
 
 ######################### PID TUNER #########################

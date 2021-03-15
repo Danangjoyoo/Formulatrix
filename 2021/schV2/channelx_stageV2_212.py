@@ -2596,7 +2596,7 @@ class PicktipConfig:
 	firstMoveAcc = 100
 	firstMoveVel = 80
 	secondMoveAcc = 30
-	secondMoveVel = 10#3
+	secondMoveVel = 10
 	secondMoveDist = 1.0
 	picktipOffset = -0.1
 	retractAcc = 100

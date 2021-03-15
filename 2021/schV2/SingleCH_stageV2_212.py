@@ -1,4 +1,4 @@
-### Script Version : v2021.3.15.85355
+### Script Version : v2021.3.15.91222
 from misc import *
 import FloDeck_stageV2_212 as deck
 import pregx as pr
@@ -1048,7 +1048,7 @@ def yoyo(): #temporary for debugging dpc
 
 
 # DECKS
-A1,A2,A3,A4,A5,A6,A7,A8,A9,A10,A11,A12 = [A for A in deck.wellname[0:12]]
+A1,A2,A3,A4,A5,A6,A7,A8,A9,A10,A11,A12 = [A for A in deck.wellname[00:12]]
 B1,B2,B3,B4,B5,B6,B7,B8,B9,B10,B11,B12 = [B for B in deck.wellname[12:24]]
 C1,C2,C3,C4,C5,C6,C7,C8,C9,C10,C11,C12 = [C for C in deck.wellname[24:36]]
 D1,D2,D3,D4,D5,D6,D7,D8,D9,D10,D11,D12 = [D for D in deck.wellname[36:48]]
@@ -1224,7 +1224,7 @@ class Plate():
 			if not simulation:
 				inputs = input("Pipetting Mode: Increment/Copy/CustomVol/Simulation (i/c/v/s) >> ")
 			else:
-				inputs = input("Pipetting Mode: Increment/Copy/CustomVol/Simulation (i/v/s) >> ")
+				inputs = input("Pipetting Mode: Increment/CustomVol (i/v) >> ")
 			if str.lower(inputs) == 'i':
 				printb("   =================== Increment Filling Mode Activated ===================")
 				inputs = avoidInpErr.reInput('StartVol, EndVol, range >> ',avoidInpErr.test_rangeVol); inputs = inputs.split(',')
@@ -1280,10 +1280,10 @@ class Plate():
 			print("Aspirate Mode\t:", aspPos_state)
 			print("AspPos:", inputs[4], '| DspPos:', inputs[5])
 			print('Pickpos', pickpos)
-			volume, operation = Plate.volScaling(complete_vols,tip,'scale'); print('Volulme Calibration\t:',operation)
 			deck.setZeroDeckMode(tip)
 
 			if not simulation:
+				volume, operation = Plate.volScaling(complete_vols,tip,'scale'); print('Volulme Calibration\t:',operation)
 				printr('Enter to continue... ');input()
 				speedMode('plate')
 				starttime   = time.time()
@@ -1425,7 +1425,7 @@ class Plate():
 		lld_dsp = -127
 		pick_targets    = {20   :-134,  200     :-125,  1000    :-127}
 		targetpick = pick_targets[tip]
-		protocol = read_protocol(protocolname)
+		protocol = plate.read_protocol(protocolname)
 		volume = vol_calibrate(protocol[0],tip)
 		print(volume)
 		target = protocol[1]
@@ -1456,7 +1456,7 @@ class Plate():
 		elapsedtime = (time.time()-starttime)
 		print("Timeit = ", elapsedtime)
 
-plate = Plate
+plate = Plate()
 
 splotter = SPlotter(c.p)
 

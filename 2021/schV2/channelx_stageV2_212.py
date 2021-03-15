@@ -2593,97 +2593,74 @@ def hi_flow(stat=1):
 
 # PICKTIP
 class PicktipConfig:
-	firstMoveAcc = 100
-	firstMoveVel = 80
-	secondMoveAcc = 30
-	secondMoveVel = 10
-	secondMoveDist = 1.0
-	picktipOffset = -0.1
-	retractAcc = 100
-	retractVel = 100
-	retractDist = {20: 60, 200: 70, 1000: 110}
-	waitPosOffset = 5
-	delayBeforeValidate = 100/1000.0
+	acc = {	'1st' : 1000,
+			'2nd' : 1000,
+			'retract' : 1000 }
+	vel = {	'1st' : 80,
+			'2nd' : 10,
+			'retract' : 80 }
+	retractDist = {20: -135, 200: -125, 1000: -30}
+	current = {	'boost' : 0.6,
+				'travel': 0.6,
+				'hold'  : 0.6  }
+	folErrorLimit = {'1st' : 15, '2nd' : 2 }
+	picktipOffset = -10
 	colThres = 30
-	tipPosTolerance = 2.8
-	freq = 1500
+	resThres = 20
+	freq = 2000
 	freq_delay = 250/1000.0
-	folErrorLimit = 15
-	targetReachedWindow = 100
-	flow = 150
-	validColMin = 500
-	validColMax = 3000
-	validResMin = 50
-	validResMax = 12000
-	validSampleNum = 5
-	validSamplingDelay = 20/1000.0
-	validPress2Limit = {20 : {'min':-6.0, 'max':20.0},
-						200: {'min':-6.0, 'max':15.0},
-						1000: {'min':-6.0, 'max':8.0}}
-	boostCurr = 0.5
-	travelCurr = 0.4
-	holdCurr = 0.2
+	sampleSize = 6
 
 def setUp_picktip(targetZ, tip):
-	printg(f"Setting Up Picktip for P{tip}..")
-	folErrorEnable = p.get_fol_error_config(0)['is_tracking_enabled']
-	p.set_fol_error_config(0,folErrorEnable,PicktipConfig.folErrorLimit)
-	p.start_regulator_mode(2,PicktipConfig.flow,1,0,0)
-	set_freq(PicktipConfig.freq,PicktipConfig.freq_delay)
-	tare_pressure()
-	init_res = 0
-	init_col = 0
-	for i in range(PicktipConfig.validSampleNum):
-		init_res += sensing.res()
-		init_col += sensing.col()
-	init_res /= PicktipConfig.validSampleNum
-	init_col /= PicktipConfig.validSampleNum
-	picking = False
-	# FIRST MOVE
-	print('firstmove..')
-	move_abs_z(targetZ+PicktipConfig.picktipOffset+PicktipConfig.secondMoveDist, PicktipConfig.firstMoveVel, PicktipConfig.firstMoveAcc)
-	# SECOND MOVE
+	p.set_AD9833_Frequency(PicktipConfig.freq)
+	time.sleep(PicktipConfig.freq_delay)
+	init_res = np.average([sensing.res() for i in range(PicktipConfig.sampleSize)])
+	init_col = np.average([sensing.col() for i in range(PicktipConfig.sampleSize)])
 	defaultCurr = [p.get_motor_currents(0)[cur] for cur in list(p.get_motor_currents(0).keys())]
-	if (init_col - sensing.col()) > PicktipConfig.colThres:
-		p.set_motor_currents(0, PicktipConfig.boostCurr, PicktipConfig.travelCurr, PicktipConfig.holdCurr)
-		clear_motor_fault()
-		print('secondmove..')
-		move_abs_z(targetZ+PicktipConfig.picktipOffset, PicktipConfig.secondMoveVel, PicktipConfig.secondMoveAcc)
-		picking = True
-	# RETRACT MOVE
-	clear_motor_fault()
-	print('retract..')
-	move_rel_z(PicktipConfig.retractDist[tip], PicktipConfig.retractVel, PicktipConfig.retractAcc)
-	p.set_motor_currents(0, *defaultCurr)
-	# VALIDATE
-	if picking:
-		press2, col, res = 0,0,0
-		p2Valid, colValid, resValid = False, False, False
-		for i in range(PicktipConfig.validSampleNum):
-			press2 += sensing.p2()
-			col += sensing.col()
-			res += sensing.res()
-			time.sleep(PicktipConfig.validSamplingDelay)
-		print('press2 col res :', press2, col, res)
-		press2 /= PicktipConfig.validSampleNum;	delta_press = press2 - globals()['ATM_pressure']
-		p2min, p2max = PicktipConfig.validPress2Limit[tip]['min'], PicktipConfig.validPress2Limit[tip]['max']
-		p2Valid = p2min <= delta_press <= p2max
-		col /= PicktipConfig.validSampleNum
-		colValid = PicktipConfig.validColMin <= col <= PicktipConfig.validColMax
-		res /= PicktipConfig.validSampleNum;# res = init_res - res
-		resValid = PicktipConfig.validResMin <= res <= PicktipConfig.validResMax
-		abort_flow()
-		print("p2: {}, col: {}, res: {}".format(delta_press,col,res))
-		print("p2Valid: {}, colValid: {}, resValid: {}".format(p2Valid,colValid,resValid))
-		if p2Valid and colValid and resValid:
-			printg('Picking Tip Succeed')
+	defaultFolError = p.get_fol_error_config(0)['max_fol_error']
+
+	# FIRST MOVE
+	p.set_fol_error_config(0,1,PicktipConfig.folErrorLimit['1st'])	
+	p.set_abort_threshold(InputAbort.COLLISION1,init_col-PicktipConfig.colThres)
+	p.set_abort_threshold(InputAbort.COLLISION2,init_col+PicktipConfig.colThres)
+	collision1 = 1 << InputAbort.COLLISION1
+	collision2 = 1 << InputAbort.COLLISION2
+	p.set_abort_config(AbortID.MOTORHARDBRAKE,False, collision1+collision2, collision1)
+	move_abs_z(targetZ, PicktipConfig.vel['1st'], PicktipConfig.acc['1st'])
+	status = p.get_motor_status(0)
+
+	if status != 4:
+		printg ("collision pick tip triggered")
+		p.clear_motor_fault(0)
+		p.set_motor_enabled(0,1)
+		p.set_fol_error_config(0,1,PicktipConfig.folErrorLimit['2nd'])
+		p.set_motor_currents(0, PicktipConfig.current['boost'], PicktipConfig.current['travel'], PicktipConfig.current['hold'])
+		p.set_encoder_correction_enable(0,0)
+		move_abs_z(targetZ+PicktipConfig.picktipOffset, PicktipConfig.vel['1st'], PicktipConfig.vel['2nd'])
+		time.sleep(0.1)
+
+		# RETRACT MOVE
+		clear_motor_fault()		
+		p.set_encoder_correction_enable(0,1)
+		move_abs_z(PicktipConfig.retractDist[tip], PicktipConfig.vel['retract'], PicktipConfig.acc['retract'])
+		p.set_motor_currents(0,*defaultCurr)
+		p.set_fol_error_config(0,1,defaultFolError)
+
+		# VALIDATION
+		pickRes = np.average([sensing.res() for i in range(PicktipConfig.sampleSize)])
+		validRes = abs(pickRes - init_res)
+		if PicktipConfig.resThres < validRes :
 			return True
-		else: 
-			printr('Picking Tip Failed')
+		else:
 			return False
-	else: 
-		printr('Picking Tip Failed')
+	else:
+		p.clear_motor_fault(0)
+		clear_abort_config()
+		p.set_motor_enabled(0,1)
+		move_abs_z(PicktipConfig.retractDist[tip], PicktipConfig.vel['1st'], PicktipConfig.acc['1st'])
 		return False
+
+
 
 # PIPETTING
 
@@ -2702,8 +2679,6 @@ class PLLDConfig():
 	useDynamic = True
 	pAvgSample = 1000
 	stripGap = 0.4
-	#stopDecel = 16384.0
-	#jerk = 65535.0
 	abortDecel = ((stem_vel*stem_eng)**2)/(2*(stripGap*stem_eng))
 
 class WLLDConfig():
@@ -2760,9 +2735,6 @@ class chipCalibrationConfig():
 	colCompressTolerance = 4.0
 
 class DPCConfig():
-	#kp = {20: 0.01, 	200: 0.03875, 	1000: 0.08}
-	#ki = {20: 0.000001, 200: 0, 		1000: 0}
-	#kd = {20: 0.0005, 	200: 0, 		1000: 0.004}
 	kp = {20: 0.05, 	200: 0.05, 			1000: 0.05}
 	ki = {20: 0.000001, 200: 0.000001, 		1000: 0.000001}
 	kd = {20: 0.0005, 	200: 0.0005, 		1000: 0.0005}

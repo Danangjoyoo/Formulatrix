@@ -1,4 +1,4 @@
-### Script Version : v2021.3.15.91222
+### Script Version : v2021.3.15.175330
 from misc import *
 import FloDeck_stageV2_212 as deck
 import pregx as pr
@@ -2615,7 +2615,7 @@ class DPC():
 		ax2.legend(loc='lower right')
 		plt.show()
 
-dpc = DPC
+dpc = DPC()
 
 # NOTIFICATION & ALERT
 class avoidInpErr():

@@ -25,9 +25,9 @@ class SPlotter():
 		self.avgTime = []
 		self.x = []
 		self.thread = None
-		self.func = None
-		self.funcReturn = None
-		self.args = None
+		self.__func = None
+		self.__funcReturn = None
+		self.__args = None
 		self.quit = True
 		self.__clean = True
 		self.win = None
@@ -60,7 +60,7 @@ class SPlotter():
 			recentConf[key] = dic
 			json.dump(recentConf, config); config.close()
 
-	def resetConfig(self,key=None):
+	def resetConfig(self,key=None,warn=True):
 		with open('splotterConfig/originalConfig.json') as origin:
 			recentConf = json.load(origin); origin.close()
 			if key:
@@ -71,10 +71,10 @@ class SPlotter():
 				self.staticVar = recentConf['staticVar']
 				self.__setConfig('staticVar',self.staticVar)
 				self.limit = recentConf['limit']
-				printg("[SPlotter] All config changed to default..")
+				if warn: printg("[SPlotter] All config changed to default..")
 
-	def default(self):
-		self.resetConfig()
+	def default(self,warn=True):
+		self.resetConfig(warn=warn)
 
 	@property
 	def limit(self):
@@ -155,8 +155,8 @@ class SPlotter():
 		if self.object:
 			if args:
 				newArgs = list(args)
-				self.func = newArgs.pop(0)
-				self.args = tuple(newArgs) if len(args) > 1 else None                
+				self.__func = newArgs.pop(0)
+				self.__args = tuple(newArgs) if len(args) > 1 else None                
 				if kargs:
 					if 'quit' in kargs: self.quit = kargs['quit']
 					self.setSensor(**kargs)
@@ -174,7 +174,7 @@ class SPlotter():
 
 	def __execute(self):
 		time.sleep(2)
-		self.funcReturn = self.func(*self.args) if self.args else self.func()
+		self.__funcReturn = self.__func(*self.__args) if self.__args else self.__func()
 		time.sleep(2)
 		if self.quit: 
 			self.terminate()
@@ -187,7 +187,7 @@ class SPlotter():
 		time.sleep(2)
 
 	def getReturn(self):
-		return self.funcReturn
+		return self.__funcReturn
 
 	def liveplot(self,*s,**show):
 		if self.object:
@@ -196,12 +196,12 @@ class SPlotter():
 			self.thread1 = threading.Thread(target=self.__autoUpdate)
 			self.thread1.start()
 			self.__shadowProcess()
-			if self.__clean: self.default()
+			if self.__clean: self.default(warn=False)
 		else:
 			self.init = True
 			self.plotStat = True
 			self.win = pg.GraphicsLayoutWidget(show=True)
-			self.win.resize(800,400)
+			self.win.resize(850,450)
 			self.win.setWindowTitle('Live Plotter')
 			self.wiplot = self.win.addPlot(title='SPlotter')
 			self.wiplot.addLegend()
@@ -282,7 +282,7 @@ class SPlotter():
 					vals = [valve, self.current_travel, self.current_vel, self.current_acc, col, res, p1, p2, temp1, temp2]
 					self.__sendValue(*vals)
 					t1 = time.perf_counter()
-				if self.__clean: self.default()
+				if self.__clean: self.default(warn=False)
 		else:
 			if self.plotStat:
 				vals = self.__receiveValue()
@@ -388,7 +388,7 @@ class SPlotter():
 		for var in self.varPack:
 			print(var,'\t:', f' Plot: {self.varPack[var][showStat]} | Scale: {self.varPack[var][scale]} | Offset: {self.varPack[var][offset]}')
 
-	@staticmethod # Dont touch this, this function to generate the new config on folder
+	@staticmethod # Dont touch this, this function to generate the new config for new pc
 	def generateConfig(self):
 		if 'PlotterLog' not in os.listdir(os.getcwd()): 
 			os.system("mkdir PlotterLog")

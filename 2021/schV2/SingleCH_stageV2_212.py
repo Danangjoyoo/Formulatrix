@@ -1,4 +1,4 @@
-### Script Version : v2021.3.10.143934
+### Script Version : v2021.3.15.85355
 from misc import *
 import FloDeck_stageV2_212 as deck
 import pregx as pr
@@ -1093,7 +1093,7 @@ def setVelAcc_z_mode(mode):
 		vel_z = 150; acc_z = 1000
 speedMode('m')
 
-def manualStem():
+def jog():
 	c.clear_motor_fault()
 	c.clear_estop()
 	col_init = c.sensing.col()
@@ -1176,7 +1176,7 @@ class Plate():
 		return rawMaps, marks
 
 	@staticmethod
-	def fill(*inputs):
+	def modified_plate_copy(*inputs):
 		operation, simulation = False, False
 		list_vol, aspPos, dspPos, complete_vols = [], [], [], []
 		tip, iter_per_vol, pickpos = None, None, None
@@ -1226,15 +1226,15 @@ class Plate():
 			else:
 				inputs = input("Pipetting Mode: Increment/Copy/CustomVol/Simulation (i/v/s) >> ")
 			if str.lower(inputs) == 'i':
-				printb("   =================== increment Filling Mode Activated ===================")
+				printb("   =================== Increment Filling Mode Activated ===================")
 				inputs = avoidInpErr.reInput('StartVol, EndVol, range >> ',avoidInpErr.test_rangeVol); inputs = inputs.split(',')
 				list_vol =  np.arange(float(inputs[0]),float(inputs[1]),float(inputs[2]))
 				inputs = str.upper(avoidInpErr.reInput('Tip, Iter/tip, Pickpos, AspPos, DspPos >> ', avoidInpErr.test_plateFill)); inputs = inputs.split(',')
 				aspPos_state = str.lower(input('Asp Pos Mode (auto/normal/lock) >> '))
 				if not simulation:
-					Plate.fill(list_vol,int(inputs[0]), int(inputs[1]), inputs[2], inputs[3], inputs[4],aspPos_state,False)
+					Plate.modified_plate_copy(list_vol,int(inputs[0]), int(inputs[1]), inputs[2], inputs[3], inputs[4],aspPos_state,False)
 				else:
-					Plate.fill(list_vol,int(inputs[0]), int(inputs[1]), inputs[2], inputs[3], inputs[4],aspPos_state,True)
+					Plate.modified_plate_copy(list_vol,int(inputs[0]), int(inputs[1]), inputs[2], inputs[3], inputs[4],aspPos_state,True)
 			elif str.lower(inputs) == 'v':
 				printb("   =================== Custom Vol Mode Activated ===================")
 				inputs = avoidInpErr.reInput('Desired Vol >> '); inputs = inputs.split(',')
@@ -1242,23 +1242,23 @@ class Plate():
 				inputs = str.upper(avoidInpErr.reInput('Tip, Iter/vol, Pickpos, AspPos, DspPos >> ', avoidInpErr.test_plateFill)); inputs = inputs.split(',')
 				aspPos_state = str.lower(input('Asp Pos Mode (auto/normal/lock) >> '))
 				if not simulation:
-					Plate.fill(list_vol,int(inputs[0]), int(inputs[1]), inputs[2], inputs[3], inputs[4],aspPos_state, False)
+					Plate.modified_plate_copy(list_vol,int(inputs[0]), int(inputs[1]), inputs[2], inputs[3], inputs[4],aspPos_state, False)
 				else:
-					Plate.fill(list_vol,int(inputs[0]), int(inputs[1]), inputs[2], inputs[3], inputs[4],aspPos_state,True)
+					Plate.modified_plate_copy(list_vol,int(inputs[0]), int(inputs[1]), inputs[2], inputs[3], inputs[4],aspPos_state,True)
 			elif str.lower(inputs) == 'c':
 				if simulation:
 					printr("**Simulation isn't available for Plate Copy\n**Please reinput operation type..")
-					Plate.fill()
+					Plate.modified_plate_copy()
 				else:
 					printb("   =================== Plate Copy Mode Activated ===================")
 					inputs = str.lower(input("Insert Pickpos, tip >> ")); inputs = inputs.split(',')
 					Plate.plate_copy(inputs[0],int(inputs[1]))
 			elif str.lower(inputs) == 's':
 				#printg("\t\t*** SIMULATION MODE ***\t\t")
-				Plate.fill('s')
+				Plate.modified_plate_copy('s')
 			else:
 				printr("Insert Only 1 mode! i/c/v/s")
-				Plate.fill()
+				Plate.modified_plate_copy()
 
 		if operation:
 			sim_pickpos = pickpos
@@ -1458,8 +1458,6 @@ class Plate():
 
 plate = Plate
 
-plotter = Plotter(c.p)
-cplotter = CPlotter(c.p)
 splotter = SPlotter(c.p)
 
 def aa(counter=False, dur=1):
@@ -2382,7 +2380,7 @@ class mainLLT():
 	def similarityCheck():
 		try:
 			# Response Delay
-			df = pd.read_csv(cplotter.fname)
+			df = pd.read_csv(splotter.logname)
 			tPack = df['tick']
 			resPack = df['res']
 			velPack = df['vel']
@@ -2431,15 +2429,10 @@ class mainLLT():
 		printy("LLT Pipetting Test Finished..")
 
 	@staticmethod
-	def pipettingTest(tip, volume,iters=1,live=True,tool=1):
+	def pipettingTest(tip, volume,iters=1,live=True):
 		if live:
-			thread1 = threading.Thread(target=mainLLT.test_setUp,args=(tip,volume,iters))
-			thread1.start()
-			while not mainLLT.testStat: time.sleep(0.1)
-			if tool == 0: 
-				plotter.liveplot(p1=True,p2=True,res=True,vel=True)
-			else:				
-				cplotter.liveplot(p1=(True,3,-2000),p2=(True,3,-2000),res=(True,0.4,0),vel=(True,20,0))
+			mainLLT.test_setUp(tip, volume, iters)
+			splotter.liveplot(p1=(True,3,-2000),p2=(True,3,-2000),res=(True,0.4,0),vel=(True,20,0))
 		else:
 			return mainLLT.test_setUp(tip, volume, iters, log=True)
 
@@ -2517,7 +2510,7 @@ class DPC():
 
 		# Liveplotter
 		if live:
-			splotter.liveplot(temp1=True,temp2=True)
+			#splotter.liveplot(temp1=True,temp2=True)
 			splotter.default()
 			splotter.addStaticChart('Actual P_Ref',actual_pref,color=(50,250,40),copyScaling='p2')
 			splotter.addStaticChart('Fake P_Ref',pref,color=(250,200,40),copyScaling='p2')

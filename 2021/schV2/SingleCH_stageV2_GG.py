@@ -1,8 +1,8 @@
-### Script Version : v2021.3.15.175330
+### Script Version : v2021.3.16.81824
 from misc import *
-import FloDeck_stageV2_212 as deck
+import FloDeck_stageV2_GG as deck
 import pregx as pr
-import channelx_stageV2_212 as c
+import channelx_stageV2_GG as c
 import time, math, sys
 from tabulate import tabulate
 import pandas as pd

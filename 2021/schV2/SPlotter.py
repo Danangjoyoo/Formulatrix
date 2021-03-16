@@ -184,7 +184,7 @@ class SPlotter():
 		def shade(): os.system(f"python3 {__name__}.py")
 		shadowThread = threading.Thread(target=shade)
 		shadowThread.start()
-		time.sleep(2)
+		while not self.transmitterStat: pass		
 
 	def getReturn(self):
 		return self.__funcReturn
@@ -196,7 +196,6 @@ class SPlotter():
 			self.thread1 = threading.Thread(target=self.__autoUpdate)
 			self.thread1.start()
 			self.__shadowProcess()
-			if self.__clean: self.default(warn=False)
 		else:
 			self.init = True
 			self.plotStat = True
@@ -216,7 +215,7 @@ class SPlotter():
 			self.current_acc = 0
 			self.before_acc = 0
 			self.x = []
-			self.n = 1
+			self.n = 0
 			container, label, showStat, scale, offset, plotClass = 0, 1, 2, 3, 4, 5			
 			labelValve, labelTravel, labelVel, labelAcc, labelCol, labelRes, labelP1, labelP2, labelTemp1, labelTemp2 = [None for i in range(10)]
 			self.labels = [labelValve, labelTravel, labelVel, labelAcc, labelCol, labelRes, labelP1, labelP2, labelTemp1, labelTemp2]
@@ -302,10 +301,10 @@ class SPlotter():
 				if self.staticVar:
 					for var in self.staticVar: self.staticVar[var][-1].setData(self.x, self.staticVar[var][container])
 				# end of plotting ======================= save to logs
-				self.n += 1
 				spd = round((time.perf_counter() - t1)*1000.0,1)
 				self.__writeLog([self.n,round(time.perf_counter(),2),*vals])
 				self.wiplot.setLabel('top',f'{spd} ms/tick')
+				self.n += 1
 			else:
 				self.terminate()
 

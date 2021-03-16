@@ -11,7 +11,8 @@ if 'FirmwareLog' not in os.listdir(os.getcwd()): os.system("mkdir FirmwareLog")
 
 ######################### VERSION UPDATER #########################
 #Keep the scripts UP-TO-DATE with the developer
-from local_updater import *
+try: from local_updater import *
+except: pass
 
 ######################### VISUALIZATION #########################
 from visualize import *

@@ -5,7 +5,7 @@ from visualize import *
 import pandas as pd
 import multiprocessing as mp
 from matplotlib.animation import FuncAnimation
-from pyqtgraph.Qt import QtGui, QtCore
+from pyqtgraph.Qt import QtGui, QtCore, QtWidgets
 import pyqtgraph as pg
 
 """
@@ -199,10 +199,14 @@ class SPlotter():
 		else:
 			self.init = True
 			self.plotStat = True
+			QtWidgets.QApplication.setAttribute(QtCore.Qt.AA_Use96Dpi, True)
+			QtWidgets.QApplication.setAttribute(QtCore.Qt.AA_UseSoftwareOpenGL, True)
+			QtWidgets.QApplication.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling, True)		
 			self.win = pg.GraphicsLayoutWidget(show=True)
 			self.win.resize(850,450)
 			self.win.setWindowTitle('Live Plotter')
 			self.wiplot = self.win.addPlot(title='SPlotter')
+			self.wiplot.showGrid(True,True)
 			self.wiplot.addLegend()
 			self.wiplot.setLabel('bottom','Ticks','n')
 			self.logname = 'PlotterLog/SPlotter_{}.csv'.format(int(time.time()))
@@ -287,11 +291,11 @@ class SPlotter():
 				vals = self.__receiveValue()
 				# set limit
 				if len(self.varPack['travel'][0]) > self.limit:
-					for var in self.varPack: self.varPack[var][0].pop(0)
+					for var in self.varPack: del self.varPack[var][0][0]
 					if self.staticVar:
-						for var in self.staticVar: self.staticVar[var][0].pop(0)
-				else:
-					self.x = [i+1 for i in range(len(self.varPack['travel'][0])+1)]
+						for var in self.staticVar: del self.staticVar[var][0][0]
+					del self.x[0]
+				self.x.append(self.n)
 				# ADD DATA
 				for i, key in enumerate(self.varPack): self.varPack[key][0].append(vals[i]*self.varPack[key][scale]+self.varPack[key][offset])
 				if self.staticVar:
@@ -337,12 +341,29 @@ class SPlotter():
 		self.staticVar = self.resetConfig('staticVar')
 
 	def setSensor(self,*s,**sens): # untuk set sensor dari terminal dan limit
-		container, label, showStat, scale, offset = 0, 1, 2, 3, 4
+		container, label, showStat, scale, offset = 0, 1, 2, 3, 4		
 		if 'clean' in sens: 
 			if sens['clean']: self.__clean = True
 			else: self.__clean = False
 		if self.__clean: self.default()
-		if 'limit' in sens: self.limit = sens['limit']
+		if s:			
+			for var in self.varPack:
+				if 7 in s: 
+					self.varPack[var][showStat] = True
+				else: 
+					self.varPack[var][showStat] = True if var in s else self.varPack[var][showStat]
+			if 'press' in s or 'p' in s: 
+				self.varPack['p1'][showStat] = True
+				self.varPack['p2'][showStat] = True
+			if 'temp' in s:
+				self.varPack['temp1'][showStat] = True
+				self.varPack['temp2'][showStat] = True
+			if 'llt' in s:
+				sens['p1'] = (True,3,-2000)
+				sens['p2'] = (True,3,-2000)
+				sens['res'] = (True,0.4,0)
+				sens['vel'] = (True,20,0)
+		if 'limit' in sens: self.limit = sens['limit']		
 		if sens:
 			for sensor in sens:
 				if sensor in self.varPack:
@@ -351,12 +372,6 @@ class SPlotter():
 					else:
 						self.varPack[sensor][showStat] = sens[sensor]					
 					if self.varPack[sensor][showStat]: print(sensor+" plot enabled")
-		if s:
-			for var in self.varPack:
-				if 7 in s: 
-					self.varPack[var][showStat] = True
-				else: 
-					self.varPack[var][showStat] = True if var in s else self.varPack[var][showStat]
 		self.__setConfig('varPack',self.varPack)
 
 	def setScale(self,**vars): # untuk scaling chart

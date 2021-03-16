@@ -1,4 +1,4 @@
-### Script Version : v2021.3.16.81824
+### Script Version : v2021.3.16.144221
 from misc import *
 import FloDeck_stageV2_GG as deck
 import pregx as pr
@@ -2510,7 +2510,6 @@ class DPC():
 
 		# Liveplotter
 		if live:
-			#splotter.liveplot(temp1=True,temp2=True)
 			splotter.default()
 			splotter.addStaticChart('Actual P_Ref',actual_pref,color=(50,250,40),copyScaling='p2')
 			splotter.addStaticChart('Fake P_Ref',pref,color=(250,200,40),copyScaling='p2')
@@ -2546,10 +2545,23 @@ class DPC():
 		align(2,'D10',-30)
 		lld.findSurface(-190,lld='wet')
 		c.move_rel_z(-0.7,10,10)
-		leak_results = c.leak_v20()
-		leakRate = leak_results[1][5]
+		leakRate = c.leak_v20()
 		c.move_rel_z(30,100,500)
+		print(leakRate)
 		return leakRate
+
+	@staticmethod
+	def checkSetUp(sample=1000):
+		printb("DPC Set Up Check..")
+		t = time.localtime()
+		avgP1 = c.sensing.sampling(c.SensorMask.PRESSURE_P1,sample)
+		avgP2 = c.sensing.sampling(c.SensorMask.PRESSURE_P2,sample)
+		avgTP1 = c.sensing.sampling(c.SensorMask.TEMP_P1,sample)
+		avgTP2 = c.sensing.sampling(c.SensorMask.TEMP_P2,sample)
+		print(f'Date: \t{t[2]}/{t[1]}/{t[0]}')
+		print(f'Time: \t{t[3]}:{t[4]}:{t[5]}')
+		print(f'P1 >> Press : {avgP1} | Temp : {avgTP1}')
+		print(f'P2 >> Press : {avgP2} | Temp : {avgTP2}')
 
 	@staticmethod
 	def __timeCather():

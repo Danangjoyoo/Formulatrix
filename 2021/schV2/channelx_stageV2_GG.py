@@ -2092,8 +2092,7 @@ def start_flow(flow, dur=None):
 	else:		
 		p.start_regulator_mode(2,flow,1,0,0)
 
-def release_to_atm(prints=False):
-
+def release_to_atm():
 	p.set_valve(1)
 	time.sleep(5)
 	abort_flow()
@@ -2419,7 +2418,7 @@ def leak_v20(limits=[250],dur=60):
 			abort_flow()
 			time.sleep(0.2)
 
-			average_pressure(200)
+			average_pressure(1000)
 
 			P1start = format_float((AverageP1-atm))
 			P2start = format_float((AverageP2-atm))
@@ -2477,8 +2476,7 @@ def leak_v20(limits=[250],dur=60):
 	print('Leak rate vacuum\t: '+str(result[1][5])+' mbar/min at ',str(result[1][2][0])+' mbar')
 	pipetting_done_req = True
 	tare_done_req = True
-
-	return result
+	return leak_rate
 def count_vol(mode):
 	#tare_pressure()
 	global Count_volume_done
@@ -2949,9 +2947,11 @@ class ReadSensor():
 		os.chdir('..')
 		return amps
 	def sampling(self, sensorMask, sample=1000):
-		thread_logger(sensorm=sensorMask,maxTick=1000,openui=False)
+		thread_logger(sensorm=sensorMask,maxTick=sample,openui=False)
 		df = pd.read_csv(globals()['file_name'])
-		key = globals()['STRING_SENSOR_MASK'][(sensorMask>>1)]
+		for i in range(0,15):
+			if sensorMask & (1 << i) != 0 : idxKey = i
+		key = globals()['STRING_SENSOR_MASK'][idxKey]
 		return np.average(df[key])
 	def sensorRate(self,dur=0,log=False,maxTick=0):
 		print('Press ESC to stop..')

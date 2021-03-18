@@ -1,17 +1,13 @@
 import sys
 import clr
 import time
-from path import*
+from path import Device
 from numpy import allclose,arange,array
 import itertools
-from port import Device
 
-
-path_deck = r"../DeviceOpfuncs/FloDeck.yaml"
 device_addr = 1
 
-d = Device(device_addr)
-d.connect()
+d = Device(device_addr,'deck')
 
 #Abort ID's
 MOTOR_0         = 0

@@ -18,7 +18,7 @@ from worker import *
 address = 30
 stem_eng = 5.0
 
-p = Device(address,'channel')
+p = Device('channel')
 
 CAL_ASP = None
 CAL_DSP = None

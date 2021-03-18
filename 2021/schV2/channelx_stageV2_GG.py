@@ -1,4 +1,4 @@
-from path import*
+from path import Device
 import time, imp, os, sys
 from numpy import corrcoef
 import numpy as np, pandas as pd
@@ -7,20 +7,18 @@ from subprocess import call
 from winsound import Beep
 from math import pi
 from pandas import read_csv
-from port import Device
 import keyboard as kb, colorama as cora
 from collections import OrderedDict as ordict
 import tkinter as tk
 from tkinter import filedialog as fd
 from visualize import *
+from worker import *
 
 
 address = 30
 stem_eng = 5.0
 
-p = Device(address)
-p.connect()
-
+p = Device(address,'channel')
 
 CAL_ASP = None
 CAL_DSP = None
@@ -745,6 +743,7 @@ def tare_pressure():
 	if ATM_pressure > 940:
 		return False
 	return True
+
 
 def average_pressure(sample):
 	#print "Averaging BEGIN"
@@ -1761,6 +1760,7 @@ def set_mini2():
 	beep()
 	return status
 
+@worker
 def set_breach_in():
 	a = 0
 	for i in range(100):
@@ -2387,7 +2387,7 @@ def DLLT_stop():
 	clear_abort_config(1)
 	p.stop_liquid_tracker()
 
-def leak_v20(limits=[250],dur=60):
+def leak_v20(limits=[400],dur=60):
 	#for FW 0.8.15
 	global pipetting_done_req
 	global  tare_done_req
@@ -2476,7 +2476,8 @@ def leak_v20(limits=[250],dur=60):
 	print('Leak rate vacuum\t: '+str(result[1][5])+' mbar/min at ',str(result[1][2][0])+' mbar')
 	pipetting_done_req = True
 	tare_done_req = True
-	return leak_rate
+	return max(result[0][5], result[1][5])
+
 def count_vol(mode):
 	#tare_pressure()
 	global Count_volume_done
@@ -2590,6 +2591,7 @@ def hi_flow(stat=1):
 ################### IMPROVEMENTS ################################ IMPROVEMENTS ################################################## IMPROVEMENTS #################################################
 
 # PICKTIP
+
 class PicktipConfig:
 	acc = {	'1st' : 1000,
 			'2nd' : 1000,
@@ -2657,8 +2659,103 @@ def setUp_picktip(targetZ, tip):
 		p.set_motor_enabled(0,1)
 		move_abs_z(PicktipConfig.retractDist[tip], PicktipConfig.vel['1st'], PicktipConfig.acc['1st'])
 		return False
+"""
 
+# PICKTIP
+class PicktipConfig:
+	firstMoveAcc = 100
+	firstMoveVel = 80
+	secondMoveAcc = 30
+	secondMoveVel = 3
+	secondMoveDist = 1.0
+	picktipOffset = -0.1
+	retractAcc = 100
+	retractVel = 100
+	retractDist = {20: 60, 200: 70, 1000: 100}
+	waitPosOffset = 5
+	delayBeforeValidate = 100/1000.0
+	colThres = 30
+	tipPosTolerance = 2.8
+	freq = 1500
+	freq_delay = 250/1000.0
+	folErrorLimit = 15
+	targetReachedWindow = 100
+	flow = 150
+	validColMin = 500
+	validColMax = 3000
+	validResMin = 50
+	validResMax = 12000
+	validSampleNum = 5
+	validSamplingDelay = 20/1000.0
+	validPress2Limit = {20 : {'min':-6.0, 'max':20.0},
+						200: {'min':-6.0, 'max':15.0},
+						1000: {'min':-6.0, 'max':8.0}}
+	boostCurr = 0.5
+	travelCurr = 0.4
+	holdCurr = 0.2
 
+def setUp_picktip(targetZ, tip):
+	printg(f"Setting Up Picktip for P{tip}..")
+	folErrorEnable = p.get_fol_error_config(0)['is_tracking_enabled']
+	p.set_fol_error_config(0,folErrorEnable,PicktipConfig.folErrorLimit)
+	p.start_regulator_mode(2,PicktipConfig.flow,1,0,0)
+	set_freq(PicktipConfig.freq,PicktipConfig.freq_delay)
+	tare_pressure()
+	init_res = 0
+	init_col = 0
+	for i in range(PicktipConfig.validSampleNum):
+		init_res += sensing.res()
+		init_col += sensing.col()
+	init_res /= PicktipConfig.validSampleNum
+	init_col /= PicktipConfig.validSampleNum
+	picking = False
+	# FIRST MOVE
+	print('firstmove..')
+	move_abs_z(targetZ+PicktipConfig.picktipOffset+PicktipConfig.secondMoveDist, PicktipConfig.firstMoveVel, PicktipConfig.firstMoveAcc)
+	# SECOND MOVE
+	defaultCurr = [p.get_motor_currents(0)[cur] for cur in list(p.get_motor_currents(0).keys())]
+	if (init_col - sensing.col()) > PicktipConfig.colThres:
+		p.set_motor_currents(0, PicktipConfig.boostCurr, PicktipConfig.travelCurr, PicktipConfig.holdCurr)
+		clear_motor_fault()
+		print('secondmove..')
+		move_abs_z(targetZ+PicktipConfig.picktipOffset, PicktipConfig.secondMoveVel, PicktipConfig.secondMoveAcc)
+		picking = True
+	# RETRACT MOVE
+	clear_motor_fault()
+	print('retract..')
+	move_rel_z(PicktipConfig.retractDist[tip], PicktipConfig.retractVel, PicktipConfig.retractAcc)
+	p.set_motor_currents(0, *defaultCurr)
+	return True
+	## VALIDATE
+	#if picking:
+	#	press2, col, res = 0,0,0
+	#	p2Valid, colValid, resValid = False, False, False
+	#	for i in range(PicktipConfig.validSampleNum):
+	#		press2 += sensing.p2()
+	#		col += sensing.col()
+	#		res += sensing.res()
+	#		time.sleep(PicktipConfig.validSamplingDelay)
+	#	print('press2 col res :', press2, col, res)
+	#	press2 /= PicktipConfig.validSampleNum;	delta_press = press2 - globals()['ATM_pressure']
+	#	p2min, p2max = PicktipConfig.validPress2Limit[tip]['min'], PicktipConfig.validPress2Limit[tip]['max']
+	#	p2Valid = p2min <= delta_press <= p2max
+	#	col /= PicktipConfig.validSampleNum
+	#	colValid = PicktipConfig.validColMin <= col <= PicktipConfig.validColMax
+	#	res /= PicktipConfig.validSampleNum;# res = init_res - res
+	#	resValid = PicktipConfig.validResMin <= res <= PicktipConfig.validResMax
+	#	abort_flow()
+	#	print("p2: {}, col: {}, res: {}".format(delta_press,col,res))
+	#	print("p2Valid: {}, colValid: {}, resValid: {}".format(p2Valid,colValid,resValid))
+	#	if p2Valid and colValid and resValid:
+	#		printg('Picking Tip Succeed')
+	#		return True
+	#	else: 
+	#		printr('Picking Tip Failed')
+	#		return False
+	#else: 
+	#	printr('Picking Tip Failed')
+	#	return False
+"""
 
 # PIPETTING
 

@@ -2,6 +2,9 @@
 #Installing required modules/libraries (dependencies) to run FLO V2 Single Channel
 #import 
 
+######################### THREAD WORKER #########################
+from worker import *
+
 ######################### FOLDER CHECKING #########################
 #Adding required folder if there aren't exist yet
 import os
@@ -13,6 +16,7 @@ if 'FirmwareLog' not in os.listdir(os.getcwd()): os.system("mkdir FirmwareLog")
 #Keep the scripts UP-TO-DATE with the developer
 try: from local_updater import *
 except: pass
+
 
 ######################### VISUALIZATION #########################
 from visualize import *

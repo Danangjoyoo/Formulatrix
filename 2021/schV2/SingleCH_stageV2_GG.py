@@ -1,4 +1,4 @@
-### Script Version : v2021.3.16.17435
+### Script Version : v2021.3.18.11458
 from misc import *
 import FloDeck_stageV2_GG as deck
 import pregx as pr
@@ -29,7 +29,8 @@ P200_picktip_z = -126
 P20_picktip_z = -136
 #Zpick   = [-114,-104]
 
-pick_targets    = {20: -199, 200: -190.5, 1000: -143.5}
+#pick_targets    = {20: -199, 200: -190.5, 1000: -143.5}
+pick_targets    = {20: -199, 200: -190, 1000: -143.5}
 asp_targets     = {20: -170, 200: -160, 1000: -110}
 dsp_targets     = {20: -120, 200: -130, 1000: -80}
 safes           = {20: -95, 200: -85, 1000: -20}
@@ -133,14 +134,16 @@ def initialization():
 	deck.clear_motor()
 	c.enable_z()
 	c.home_z()
+	a = pr.default_preg() #worker
+	b = c.set_breach_in() #worker
 	c.move_abs_z(-20,10,100)
 	time.sleep(2)
 	#w.home_wdeck()
 	deck.home_all_motor()
 	time.sleep(2)
-	pr.default_preg()
+	#a.wait();b.wait()
+	tw.wait(a,b)
 	tare()
-	c.set_breach_in()
 	speedMode('m')
 	parkingBeep(False)
 
@@ -2447,10 +2450,9 @@ class DPC():
 
 	@staticmethod
 	def on(tip=20,vol=20): 
-	# make sure you tare pressure completed before start dpc
-	# make sure the tip isn't went to deep, activate the LLT resistance is recommended before runnIng DPC
-	# the tip depth effect the drip possibilities on the tip
-		#c.knalimit = False
+		# make sure you tare pressure completed before start dpc
+		# make sure the tip isn't went to deep, activate the LLT resistance is recommended before runnIng DPC
+		# the tip depth effect the drip possibilities on the tip
 		c.p.select_flow_sensor(0)
 		kp = c.DPCConfig.kp[tip]
 		ki = c.DPCConfig.ki[tip]
@@ -2517,6 +2519,7 @@ class DPC():
 		
 		wait(dur)
 		splotter.terminate()
+		splotter.default()
 
 		winsound.Beep(1300,1000)
 		lld.findSurface(-170,lld='wet',tip=tip)
@@ -2534,6 +2537,7 @@ class DPC():
 			leakRate = DPC.leakTest()
 			printy(f"Leak Rate: {leakRate}")
 		DPC.readLog(c.file_name, pref, actual_pref)
+		#c.leak_v20()
 		eject(ejectpos=pickstat[2],tip=tip)
 		c.start_flow(100,5)
 		c.move_rel_z(50,100,500)
@@ -2541,10 +2545,33 @@ class DPC():
 		printg('DPC Test Done')
 
 	@staticmethod
+	def warmingUp(monitor=False):
+		if monitor: splotter.liveplot(p1=True,p2=True,valve=True,limit=1000)
+		a = time.perf_counter()
+		printb("... DPC Warming Up ...")
+		#printb("Mini e-reg Tuning..")
+		##c.set_mini2()
+		#printb("Leak Test..")
+		#DPC.leakTest()
+		printb("Air Pipetting..")
+		c.start_flow(150,10)
+		for flow in [0,1]:
+			c.p.select_flow_sensor(flow)
+			aspirate(1000); time.sleep(3)
+			dpc.on(1000); time.sleep(5); dpc.off()
+			dispense(1000); time.sleep(3)
+		printb('Stabilizing..')
+		time.sleep(10)
+		c.p.select_flow_sensor(0)
+		if monitor: splotter.terminate()
+		printb(f"Warming Up Completed! Elapsed: {int(time.perf_counter() - a)} s")
+
+	@staticmethod
 	def leakTest():
 		align(2,'D10',-30)
+		#time.sleep(5)
 		lld.findSurface(-190,lld='wet')
-		c.move_rel_z(-0.7,10,10)
+		c.move_rel_z(-1,10,10)
 		leakRate = c.leak_v20()
 		c.move_rel_z(30,100,500)
 		print(leakRate)

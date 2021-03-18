@@ -7,7 +7,7 @@ import itertools
 
 device_addr = 1
 
-d = Device(device_addr,'deck')
+d = Device('deck')
 
 #Abort ID's
 MOTOR_0         = 0

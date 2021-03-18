@@ -34,8 +34,8 @@ class SPlotter():
 		self.win = None
 		self.current_t = 0
 		self.before_t = 0
-		self.init_travel = 0
-		self.before_travel = 0
+		self.init_pos = 0
+		self.before_pos = 0
 		self.current_vel = 0
 		self.before_vel = 0
 		self.current_acc = 0
@@ -221,14 +221,14 @@ class SPlotter():
 			pg.setConfigOptions(antialias=True)
 			self.wiplot = self.win.addPlot(title='SPlotter',rowspan=10) #for side stream
 			#self.wiplot = self.win.addPlot(title='SPlotter')
-			self.wiplot.showGrid(True,True,0.5)
+			self.wiplot.showGrid(True,True,0.3)
 			self.wiplot.addLegend()
 			self.wiplot.setLabel('bottom','Ticks','n')			
 			self.logname = 'PlotterLog/SPlotter_{}.csv'.format(int(time.time()))
 			self.current_t = 0
 			self.before_t = 0
-			self.init_travel = 0
-			self.before_travel = 0
+			self.init_pos = 0
+			self.before_pos = 0
 			self.current_vel = 0
 			self.before_vel = 0
 			self.current_acc = 0
@@ -270,8 +270,8 @@ class SPlotter():
 						self.init_t = time.perf_counter()
 						self.current_t = time.perf_counter() - self.init_t
 						self.before_t = 0
-						self.init_travel = abs(self.object.get_encoder_position(0))
-						self.before_travel = 0
+						self.init_pos = abs(self.object.get_encoder_position(0))
+						self.before_pos = 0
 						self.current_vel = 0
 						self.before_vel = 0
 						self.current_acc = 0
@@ -280,11 +280,11 @@ class SPlotter():
 						time.sleep(0.1)
 					# Movement
 					self.current_t = round(time.perf_counter() - self.init_t, 3)
-					self.current_travel = abs(self.object.get_encoder_position(0))-self.init_travel
-					self.current_vel = (self.current_travel-self.before_travel)/(self.current_t-self.before_t)
+					self.current_pos = abs(self.object.get_encoder_position(0))-self.init_pos
+					self.current_vel = (self.current_pos-self.before_pos)/(self.current_t-self.before_t)
 					self.current_acc = (self.current_vel - self.before_vel)/(self.current_t-self.before_t)
 					self.before_t = self.current_t
-					self.before_travel = self.current_travel
+					self.before_pos = self.current_pos
 					self.before_vel = self.current_vel
 					self.before_acc = self.current_acc
 					# Sensors
@@ -295,7 +295,7 @@ class SPlotter():
 					p2 = self.object.read_sensor(7)
 					temp1 = self.object.read_sensor(4)
 					temp2 = self.object.read_sensor(5)
-					vals = [valve, self.current_travel, self.current_vel, self.current_acc, col, res, p1, p2, temp1, temp2]
+					vals = [valve, self.current_pos, self.current_vel, self.current_acc, col, res, p1, p2, temp1, temp2]
 					self.__sendValue(*vals)
 					t1 = time.perf_counter()
 				if self.__clean: self.default(warn=False)
@@ -303,7 +303,7 @@ class SPlotter():
 			if self.plotStat:
 				vals = self.__receiveValue()
 				# set limit
-				if len(self.varPack['travel'][0]) > self.limit:
+				if len(self.varPack['pos'][0]) > self.limit:
 					for var in self.varPack: del self.varPack[var][0][0]
 					if self.staticVar:
 						for var in self.staticVar: del self.staticVar[var][0][0]
@@ -381,6 +381,10 @@ class SPlotter():
 				sens['p2'] = (True,3,-2000)
 				sens['res'] = (True,0.4,0)
 				sens['vel'] = (True,20,0)
+			if 'dpc' in s:
+				self.varPack['p1'][showStat] = True
+				self.varPack['p2'][showStat] = True
+				self.varPack['valve'][showStat] = True
 		if 'limit' in sens: self.limit = sens['limit']
 		if not self.transmitterStat:
 			if 'side' in sens: self.sideStream = True if sens['side'] else False
@@ -434,7 +438,7 @@ class SPlotter():
 			os.chdir('..')
 		config ={"varPack":{
 					"valve"	: [[], "valve (OFF: 930 | ON: 935)", false, 5, 930],
-					"travel": [[], "pos", false, 1, 0],
+					"pos": [[], "pos", false, 1, 0],
 					"vel"	: [[], "vel", false, 1, 0],
 					"acc"	: [[], "acc", false, 1, 0],
 					"col"	: [[], "col", false, 1, 0],

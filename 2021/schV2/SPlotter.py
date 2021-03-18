@@ -12,7 +12,8 @@ import pyqtgraph as pg
 Shadow or ghost... it's unreachable...
 
 """
-container, label, showStat, scale, offset, plotClass = 0, 1, 2, 3, 4, 5
+container, label, showStat, scale, offset, plotClass, streamLabel, plotStream = 0, 1, 2, 3, 4, 5, 6, 7
+
 class SPlotter():
 	#============================= LIVE PLOTTER USING QT ===============================
 	# SetUp
@@ -43,6 +44,7 @@ class SPlotter():
 		self.staticVar = config['staticVar']
 		self.varPack = config['varPack']
 		self.__limit = config['limit']
+		self.__sideStream = False
 		self.logname = None
 		self.n = 0
 		self.timer = None
@@ -79,15 +81,26 @@ class SPlotter():
 	@property
 	def limit(self):
 		return self.getLimit
-
 	@limit.setter
 	def limit(self, val):
 		self.__limit = int(val)
 		self.__setConfig('limit', self.__limit)
-
 	@limit.getter
 	def getLimit(self):
 		return self.__limit
+
+	@property
+	def sideStream(self):
+		return self.getSideStream
+	@sideStream.setter
+	def sideStream(self,state):
+		with open('splotterConfig/sideStreamStat.flo','w') as f:
+			f.write(str(int(bool(state))))
+	@sideStream.getter
+	def getSideStream(self):
+		with open('splotterConfig/sideStreamStat.flo','r') as f:
+			self.__sideStream = bool(int(f.read()))
+		return self.__sideStream	
 
 	@property
 	def plotStat(self):
@@ -201,14 +214,16 @@ class SPlotter():
 			self.plotStat = True
 			QtWidgets.QApplication.setAttribute(QtCore.Qt.AA_Use96Dpi, True)
 			QtWidgets.QApplication.setAttribute(QtCore.Qt.AA_UseSoftwareOpenGL, True)
-			QtWidgets.QApplication.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling, True)		
+			QtWidgets.QApplication.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling, True)
 			self.win = pg.GraphicsLayoutWidget(show=True)
 			self.win.resize(850,450)
 			self.win.setWindowTitle('Live Plotter')
-			self.wiplot = self.win.addPlot(title='SPlotter')
-			self.wiplot.showGrid(True,True)
+			pg.setConfigOptions(antialias=True)
+			self.wiplot = self.win.addPlot(title='SPlotter',rowspan=10) #for side stream
+			#self.wiplot = self.win.addPlot(title='SPlotter')
+			self.wiplot.showGrid(True,True,0.5)
 			self.wiplot.addLegend()
-			self.wiplot.setLabel('bottom','Ticks','n')
+			self.wiplot.setLabel('bottom','Ticks','n')			
 			self.logname = 'PlotterLog/SPlotter_{}.csv'.format(int(time.time()))
 			self.current_t = 0
 			self.before_t = 0
@@ -220,33 +235,31 @@ class SPlotter():
 			self.before_acc = 0
 			self.x = []
 			self.n = 0
-			container, label, showStat, scale, offset, plotClass = 0, 1, 2, 3, 4, 5			
+			container, label, showStat, scale, offset, plotClass, streamLabel, plotStream = 0, 1, 2, 3, 4, 5, 6, 7
 			labelValve, labelTravel, labelVel, labelAcc, labelCol, labelRes, labelP1, labelP2, labelTemp1, labelTemp2 = [None for i in range(10)]
 			self.labels = [labelValve, labelTravel, labelVel, labelAcc, labelCol, labelRes, labelP1, labelP2, labelTemp1, labelTemp2]
 			self.colors = [(247,169,169),(255,150,25),'y','b','g','c',(100,40,250),(220,60,19),(230,20,10),(230,200,80)]
 			for i, key in enumerate(self.varPack.keys()): 
 				self.labels[i] = self.varPack[key][label] if (self.varPack[key][scale] == 1 and not self.varPack[key][offset]) else self.varPack[key][label]+' (scaled)'
 				if self.varPack[key][showStat]:
-					self.varPack[key].append(self.wiplot.plot(pen=self.colors[i], name=self.labels[i]))
+					self.varPack[key].append(self.wiplot.plot(pen=self.colors[i], name=self.labels[i]))					
+				else:
+					self.varPack[key].append(None)
+				if self.sideStream:
+					self.varPack[key].append(self.win.addLabel(text=f'{key}\t: ',row=i,col=1))
+					self.varPack[key].append(self.win.addLabel(text='',row=i,col=2))
 			if self.staticVar:
 				for var in self.staticVar: self.staticVar[var].append(self.wiplot.plot(pen=self.staticVar[var][5], name=var))
 			self.__writeLog(['tick','time',*self.varPack.keys()])
 			self.timer = QtCore.QTimer()
 			self.timer.timeout.connect(self.__autoUpdate)
 			self.timer.start(0)
-			QtGui.QApplication.instance().exec_()
+			try: QtGui.QApplication.instance().exec_()
+			except: pass
 			self.terminate()
-			for key in self.varPack.keys():
-				self.varPack[key][0] = []
-				if len(self.varPack[key])-1 == plotClass:
-					self.varPack[key].pop(plotClass)
-			if self.staticVar:
-				for var in self.staticVar: 
-					self.staticVar[var][0] = []
-					self.staticVar[var].pop(-1)
 
 	def __autoUpdate(self):
-		container, label, showStat, scale, offset, plotClass = 0, 1, 2, 3, 4, 5         
+		container, label, showStat, scale, offset, plotClass, streamLabel, plotStream = 0, 1, 2, 3, 4, 5, 6, 7
 		t1 = time.perf_counter()
 		if self.object:
 			if not self.transmitterStat:
@@ -297,11 +310,15 @@ class SPlotter():
 					del self.x[0]
 				self.x.append(self.n)
 				# ADD DATA
-				for i, key in enumerate(self.varPack): self.varPack[key][0].append(vals[i]*self.varPack[key][scale]+self.varPack[key][offset])
+				for i, key in enumerate(self.varPack): 
+					self.varPack[key][0].append(vals[i]*self.varPack[key][scale]+self.varPack[key][offset])
+					# Side Stream
+					if self.sideStream: self.varPack[key][plotStream].setText(f'{round(vals[i], 2)}')
 				if self.staticVar:
 					for var in self.staticVar: self.staticVar[var][0].append(self.staticVar[var][1]*self.staticVar[var][scale]+self.staticVar[var][offset])
 				# start to plot
-				for var in self.varPack: self.varPack[var][plotClass].setData(self.x,self.varPack[var][container]) if self.varPack[var][showStat] else None
+				for var in self.varPack: 
+					self.varPack[var][plotClass].setData(self.x,self.varPack[var][container]) if self.varPack[var][showStat] else None					
 				if self.staticVar:
 					for var in self.staticVar: self.staticVar[var][-1].setData(self.x, self.staticVar[var][container])
 				# end of plotting ======================= save to logs
@@ -314,7 +331,8 @@ class SPlotter():
 
 	def terminate(self):		
 		self.plotStat = False	
-		self.transmitterStat = False	
+		self.transmitterStat = False
+		self.sideStream = False
 		try:
 			self.timer.stop()
 			self.win.close()
@@ -346,7 +364,7 @@ class SPlotter():
 			if sens['clean']: self.__clean = True
 			else: self.__clean = False
 		if self.__clean: self.default()
-		if s:			
+		if s:
 			for var in self.varPack:
 				if 7 in s: 
 					self.varPack[var][showStat] = True
@@ -363,7 +381,9 @@ class SPlotter():
 				sens['p2'] = (True,3,-2000)
 				sens['res'] = (True,0.4,0)
 				sens['vel'] = (True,20,0)
-		if 'limit' in sens: self.limit = sens['limit']		
+		if 'limit' in sens: self.limit = sens['limit']
+		if not self.transmitterStat:
+			if 'side' in sens: self.sideStream = True if sens['side'] else False
 		if sens:
 			for sensor in sens:
 				if sensor in self.varPack:
@@ -414,7 +434,7 @@ class SPlotter():
 			os.chdir('..')
 		config ={"varPack":{
 					"valve"	: [[], "valve (OFF: 930 | ON: 935)", false, 5, 930],
-					"travel": [[], "travel", false, 1, 0],
+					"travel": [[], "pos", false, 1, 0],
 					"vel"	: [[], "vel", false, 1, 0],
 					"acc"	: [[], "acc", false, 1, 0],
 					"col"	: [[], "col", false, 1, 0],

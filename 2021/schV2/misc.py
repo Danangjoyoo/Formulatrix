@@ -20,6 +20,8 @@ except: pass
 
 ######################### VISUALIZATION #########################
 from visualize import *
+printbr('\tFORMULATRIX\t   ')
+printbw('\t INDONESIA\t   ')
 
 ######################### PLOTTER #########################
 from pyqtgraph import QtGui, QtCore

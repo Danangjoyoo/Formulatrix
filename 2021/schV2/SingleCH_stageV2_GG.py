@@ -1,4 +1,4 @@
-### Script Version : v2021.3.18.11458
+### Script Version : v2021.3.18.193251
 from misc import *
 import FloDeck_stageV2_GG as deck
 import pregx as pr
@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import tkinter as tk
 from tkinter import filedialog as fd
+
 
 w_eng_value = 4.5454545454
 B_zero = 702.4545+9*w_eng_value
@@ -2654,7 +2655,7 @@ class DPC():
 		ax2.legend(loc='lower right')
 		plt.show()
 
-dpc = DPC()
+dpc = DPC
 
 # NOTIFICATION & ALERT
 class avoidInpErr():

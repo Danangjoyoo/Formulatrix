@@ -1,9 +1,11 @@
 import numpy as np
 import time, threading, sys, os, json
 import matplotlib.pyplot as plt
+import seaborn as sns
 from visualize import *
 import pandas as pd
-import multiprocessing as mp
+import tkinter as tk
+from tkinter import filedialog as fd
 from matplotlib.animation import FuncAnimation
 from pyqtgraph.Qt import QtGui, QtCore, QtWidgets
 import pyqtgraph as pg
@@ -19,36 +21,36 @@ class SPlotter():
 	# SetUp
 	def __init__(self, obj):
 		self.object = obj
-		self.init = False
+		self.__init = False
 		self.__plotStat = False
 		self.__transmitterStat = False
-		self.init_t = time.time()
+		self.__init_t = time.time()
 		self.avgTime = []
-		self.x = []
+		self.__x = []
 		self.thread = None
 		self.__func = None
 		self.__funcReturn = None
 		self.__args = None
 		self.quit = True
 		self.__clean = True
-		self.win = None
-		self.current_t = 0
-		self.before_t = 0
-		self.init_pos = 0
-		self.before_pos = 0
-		self.current_vel = 0
-		self.before_vel = 0
-		self.current_acc = 0
-		self.before_acc = 0
+		self.__win = None
+		self.__current_t = 0
+		self.__before_t = 0
+		self.__init_pos = 0
+		self.__before_pos = 0
+		self.__current_vel = 0
+		self.__before_vel = 0
+		self.__current_acc = 0
+		self.__before_acc = 0
 		config = self.getConfig()
 		self.staticVar = config['staticVar']
 		self.varPack = config['varPack']
 		self.__limit = config['limit']
 		self.__sideStream = False
 		self.logname = None
-		self.n = 0
+		self.__n = 0
 		self.timer = None
-		self.lastVals = np.zeros(8)
+		self.__lastVals = np.zeros(8)
 
 	# Multiprocessing Communication
 	def getConfig(self):
@@ -80,31 +82,31 @@ class SPlotter():
 
 	@property
 	def limit(self):
-		return self.getLimit
+		return self.__getLimit
 	@limit.setter
 	def limit(self, val):
 		self.__limit = int(val)
 		self.__setConfig('limit', self.__limit)
 	@limit.getter
-	def getLimit(self):
+	def __getLimit(self):
 		return self.__limit
 
 	@property
 	def sideStream(self):
-		return self.getSideStream
+		return self.__getSideStream
 	@sideStream.setter
 	def sideStream(self,state):
 		with open('splotterConfig/sideStreamStat.flo','w') as f:
 			f.write(str(int(bool(state))))
 	@sideStream.getter
-	def getSideStream(self):
+	def __getSideStream(self):
 		with open('splotterConfig/sideStreamStat.flo','r') as f:
 			self.__sideStream = bool(int(f.read()))
 		return self.__sideStream	
 
 	@property
 	def plotStat(self):
-		return self.getplotStat
+		return self.__getplotStat
 
 	@plotStat.setter
 	def plotStat(self, state):
@@ -115,7 +117,7 @@ class SPlotter():
 		except: pass
 
 	@plotStat.getter
-	def getplotStat(self):
+	def __getplotStat(self):
 		for i in range(10):
 			try:
 				with open('splotterConfig/plotStat.flo','r') as f:
@@ -127,7 +129,7 @@ class SPlotter():
 
 	@property
 	def transmitterStat(self):
-		return self.getTransmitterStat
+		return self.__getTransmitterStat
 
 	@transmitterStat.setter
 	def transmitterStat(self, state):
@@ -137,7 +139,7 @@ class SPlotter():
 		except: pass
 
 	@transmitterStat.getter
-	def getTransmitterStat(self):
+	def __getTransmitterStat(self):
 		try:
 			with open('splotterConfig/transmitter.flo','r') as f:
 				stat = bool(int(f.read()))
@@ -152,16 +154,29 @@ class SPlotter():
 				s += str(data) + ',' if i+1 < len(vals) else str(data)
 			file.write(s)
 
+#	def __receiveValue(self):
+#		for i in range(10):
+#			try:
+#				with open('splotterConfig/data.flo','r') as file:
+#					data = file.read()
+#					data = data.split(',')
+#				if len(data) == 11:
+#					self.__lastVals = [float(i) for i in data]
+#					break
+#			except:
+#				pass
+#		return self.__lastVals
+
 	def __receiveValue(self):
 		try:
 			with open('splotterConfig/data.flo','r') as file:
 				data = file.read()
 				data = data.split(',')
-			if len(data) == 10:
-				self.lastVals = [float(i) for i in data]
+			if len(data) == 11:
+				self.__lastVals = [float(i) for i in data]
 		except:
 			pass
-		return self.lastVals
+		return self.__lastVals
 
 	# Plotting
 	def run(self,*args,**kargs): #function, param1, param2, dll
@@ -206,50 +221,50 @@ class SPlotter():
 		if self.object:
 			self.plotStat = True
 			self.setSensor(*s,**show)
-			self.thread1 = threading.Thread(target=self.__autoUpdate)
-			self.thread1.start()
+			self.__thread1 = threading.Thread(target=self.__autoUpdate)
+			self.__thread1.start()
 			self.__shadowProcess()
 		else:
-			self.init = True
+			self.__init = True
 			self.plotStat = True
 			QtWidgets.QApplication.setAttribute(QtCore.Qt.AA_Use96Dpi, True)
 			QtWidgets.QApplication.setAttribute(QtCore.Qt.AA_UseSoftwareOpenGL, True)
 			QtWidgets.QApplication.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling, True)
-			self.win = pg.GraphicsLayoutWidget(show=True)
-			self.win.resize(850,450)
-			self.win.setWindowTitle('Live Plotter')
+			self.__win = pg.GraphicsLayoutWidget(show=True)
+			self.__win.resize(850,450)
+			self.__win.setWindowTitle('Live Plotter')
 			pg.setConfigOptions(antialias=True)
-			self.wiplot = self.win.addPlot(title='SPlotter',rowspan=10) #for side stream
-			#self.wiplot = self.win.addPlot(title='SPlotter')
-			self.wiplot.showGrid(True,True,0.3)
-			self.wiplot.addLegend()
-			self.wiplot.setLabel('bottom','Ticks','n')			
+			self.__wiplot = self.__win.addPlot(title='SPlotter',rowspan=10) #for side stream
+			#self.__wiplot = self.__win.addPlot(title='SPlotter')
+			self.__wiplot.showGrid(True,True,0.3)
+			self.__wiplot.addLegend()
+			self.__wiplot.setLabel('bottom','Ticks','n')			
 			self.logname = 'PlotterLog/SPlotter_{}.csv'.format(int(time.time()))
-			self.current_t = 0
-			self.before_t = 0
-			self.init_pos = 0
-			self.before_pos = 0
-			self.current_vel = 0
-			self.before_vel = 0
-			self.current_acc = 0
-			self.before_acc = 0
-			self.x = []
-			self.n = 0
+			self.__current_t = 0
+			self.__before_t = 0
+			self.__init_pos = 0
+			self.__before_pos = 0
+			self.__current_vel = 0
+			self.__before_vel = 0
+			self.__current_acc = 0
+			self.__before_acc = 0
+			self.__x = []
+			self.__n = 0
 			container, label, showStat, scale, offset, plotClass, streamLabel, plotStream = 0, 1, 2, 3, 4, 5, 6, 7
-			labelValve, labelTravel, labelVel, labelAcc, labelCol, labelRes, labelP1, labelP2, labelTemp1, labelTemp2 = [None for i in range(10)]
-			self.labels = [labelValve, labelTravel, labelVel, labelAcc, labelCol, labelRes, labelP1, labelP2, labelTemp1, labelTemp2]
-			self.colors = [(247,169,169),(255,150,25),'y','b','g','c',(100,40,250),(220,60,19),(230,20,10),(230,200,80)]
+			labelValve, labelTravel, labelVel, labelAcc, labelCol, labelRes, labelP1, labelP2, labelTemp1, labelTemp2, labelBreach = [None for i in range(11)]
+			self.labels = [labelValve, labelTravel, labelVel, labelAcc, labelCol, labelRes, labelP1, labelP2, labelTemp1, labelTemp2, labelBreach]
+			self.colors = [(247,169,169),(255,150,25),'y','b','g','c',(100,40,250),(220,60,19),(230,20,10),(230,200,80),(255,255,200)]
 			for i, key in enumerate(self.varPack.keys()): 
 				self.labels[i] = self.varPack[key][label] if (self.varPack[key][scale] == 1 and not self.varPack[key][offset]) else self.varPack[key][label]+' (scaled)'
 				if self.varPack[key][showStat]:
-					self.varPack[key].append(self.wiplot.plot(pen=self.colors[i], name=self.labels[i]))					
+					self.varPack[key].append(self.__wiplot.plot(pen=self.colors[i], name=self.labels[i]))					
 				else:
 					self.varPack[key].append(None)
 				if self.sideStream:
-					self.varPack[key].append(self.win.addLabel(text=f'{key}\t: ',row=i,col=1))
-					self.varPack[key].append(self.win.addLabel(text='',row=i,col=2))
+					self.varPack[key].append(self.__win.addLabel(text=f'{key}\t: ',row=i,col=1))
+					self.varPack[key].append(self.__win.addLabel(text='',row=i,col=2))
 			if self.staticVar:
-				for var in self.staticVar: self.staticVar[var].append(self.wiplot.plot(pen=self.staticVar[var][5], name=var))
+				for var in self.staticVar: self.staticVar[var].append(self.__wiplot.plot(pen=self.staticVar[var][5], name=var))
 			self.__writeLog(['tick','time',*self.varPack.keys()])
 			self.timer = QtCore.QTimer()
 			self.timer.timeout.connect(self.__autoUpdate)
@@ -266,27 +281,27 @@ class SPlotter():
 				self.transmitterStat = True
 				while self.plotStat:
 					# start to add data =======================
-					if self.init:
-						self.init_t = time.perf_counter()
-						self.current_t = time.perf_counter() - self.init_t
-						self.before_t = 0
-						self.init_pos = abs(self.object.get_encoder_position(0))
-						self.before_pos = 0
-						self.current_vel = 0
-						self.before_vel = 0
-						self.current_acc = 0
-						self.before_acc = 0
-						self.init = False
+					if self.__init:
+						self.__init_t = time.perf_counter()
+						self.__current_t = time.perf_counter() - self.__init_t
+						self.__before_t = 0
+						self.__init_pos = abs(self.object.get_encoder_position(0))
+						self.__before_pos = 0
+						self.__current_vel = 0
+						self.__before_vel = 0
+						self.__current_acc = 0
+						self.__before_acc = 0
+						self.__init = False
 						time.sleep(0.1)
 					# Movement
-					self.current_t = round(time.perf_counter() - self.init_t, 3)
-					self.current_pos = abs(self.object.get_encoder_position(0))-self.init_pos
-					self.current_vel = (self.current_pos-self.before_pos)/(self.current_t-self.before_t)
-					self.current_acc = (self.current_vel - self.before_vel)/(self.current_t-self.before_t)
-					self.before_t = self.current_t
-					self.before_pos = self.current_pos
-					self.before_vel = self.current_vel
-					self.before_acc = self.current_acc
+					self.__current_t = round(time.perf_counter() - self.__init_t, 3)
+					self.__current_pos = abs(self.object.get_encoder_position(0))-self.__init_pos
+					self.__current_vel = (self.__current_pos-self.__before_pos)/(self.__current_t-self.__before_t)
+					self.__current_acc = (self.__current_vel - self.__before_vel)/(self.__current_t-self.__before_t)
+					self.__before_t = self.__current_t
+					self.__before_pos = self.__current_pos
+					self.__before_vel = self.__current_vel
+					self.__before_acc = self.__current_acc
 					# Sensors
 					valve = int(self.object.get_valve())
 					col = self.object.read_sensor(1)
@@ -295,7 +310,8 @@ class SPlotter():
 					p2 = self.object.read_sensor(7)
 					temp1 = self.object.read_sensor(4)
 					temp2 = self.object.read_sensor(5)
-					vals = [valve, self.current_pos, self.current_vel, self.current_acc, col, res, p1, p2, temp1, temp2]
+					breach = self.object.read_sensor(8)
+					vals = [valve, self.__current_pos, self.__current_vel, self.__current_acc, col, res, p1, p2, temp1, temp2, breach]
 					self.__sendValue(*vals)
 					t1 = time.perf_counter()
 				if self.__clean: self.default(warn=False)
@@ -307,25 +323,25 @@ class SPlotter():
 					for var in self.varPack: del self.varPack[var][0][0]
 					if self.staticVar:
 						for var in self.staticVar: del self.staticVar[var][0][0]
-					del self.x[0]
-				self.x.append(self.n)
+					del self.__x[0]
+				self.__x.append(self.__n)
 				# ADD DATA
 				for i, key in enumerate(self.varPack): 
-					self.varPack[key][0].append(vals[i]*self.varPack[key][scale]+self.varPack[key][offset])
+					self.varPack[key][container].append(vals[i]*self.varPack[key][scale]+self.varPack[key][offset])
 					# Side Stream
 					if self.sideStream: self.varPack[key][plotStream].setText(f'{round(vals[i], 2)}')
 				if self.staticVar:
 					for var in self.staticVar: self.staticVar[var][0].append(self.staticVar[var][1]*self.staticVar[var][scale]+self.staticVar[var][offset])
 				# start to plot
 				for var in self.varPack: 
-					self.varPack[var][plotClass].setData(self.x,self.varPack[var][container]) if self.varPack[var][showStat] else None					
+					self.varPack[var][plotClass].setData(self.__x,self.varPack[var][container]) if self.varPack[var][showStat] else None					
 				if self.staticVar:
-					for var in self.staticVar: self.staticVar[var][-1].setData(self.x, self.staticVar[var][container])
+					for var in self.staticVar: self.staticVar[var][-1].setData(self.__x, self.staticVar[var][container])
 				# end of plotting ======================= save to logs
 				spd = round((time.perf_counter() - t1)*1000.0,1)
-				self.__writeLog([self.n,round(time.perf_counter(),2),*vals])
-				self.wiplot.setLabel('top',f'{spd} ms/tick')
-				self.n += 1
+				self.__writeLog([self.__n,round(time.perf_counter(),2),*vals])
+				self.__wiplot.setLabel('top',f'{spd} ms/tick')
+				self.__n += 1
 			else:
 				self.terminate()
 
@@ -335,7 +351,7 @@ class SPlotter():
 		self.sideStream = False
 		try:
 			self.timer.stop()
-			self.win.close()
+			self.__win.close()
 		except:
 			pass
 
@@ -344,6 +360,21 @@ class SPlotter():
 		with open(self.logname, 'a') as f:
 			for val in vals: dataStr += str(val)+','
 			f.write(dataStr+'\n')
+
+	def readLog(self):
+		root = tk.Tk()
+		fname = fd.askopenfilename(initialdir='D:/Job/2021 H1/Job 1_LLD P1000/Python Scripts/V2 Python3/DeviceScripts/PlotterLog/')
+		root.destroy()
+		df = pd.read_csv(fname)
+		ticks = df.pop('tick')
+		sns.set()
+		for x, key in enumerate(df.keys()):
+			if x <= 10:
+				plt.plot(ticks,[float(i) for i in df[key]],label=key)
+		plt.legend(loc='upper left')
+		plt.title(fname.split('/')[-1])
+		plt.show()
+
 
 	def resetVariables(self):
 		self.varPack = self.resetConfig('varPack')
@@ -393,6 +424,7 @@ class SPlotter():
 				if sensor in self.varPack:
 					if type(sens[sensor]) == tuple:
 						self.varPack[sensor][showStat], self.varPack[sensor][scale], self.varPack[sensor][offset] = sens[sensor]
+						print(sens[sensor])
 					else:
 						self.varPack[sensor][showStat] = sens[sensor]					
 					if self.varPack[sensor][showStat]: print(sensor+" plot enabled")
@@ -446,7 +478,8 @@ class SPlotter():
 					"p1"	: [[], "p1", false, 1, 0],
 					"p2"	: [[], "p2", false, 1, 0],
 					"temp1"	: [[], "temp1", false, 1, 0],
-					"temp2"	: [[], "temp2", false, 1, 0]},
+					"temp2"	: [[], "temp2", false, 1, 0],
+					"breach": [[], "breach", false, 1, 0]},
 				"staticVar":{},
 				"limit":500 }
 		with open('splotterConfig/originalConfig.json','w') as f1: json.dump(config, f1)

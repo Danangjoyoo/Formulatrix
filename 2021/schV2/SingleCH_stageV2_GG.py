@@ -1,4 +1,4 @@
-### Script Version : v2021.3.18.193251
+### Script Version : v2021.3.22.123256
 from misc import *
 import FloDeck_stageV2_GG as deck
 import pregx as pr
@@ -2455,9 +2455,9 @@ class DPC():
 		# make sure the tip isn't went to deep, activate the LLT resistance is recommended before runnIng DPC
 		# the tip depth effect the drip possibilities on the tip
 		c.p.select_flow_sensor(0)
-		kp = c.DPCConfig.kp[tip]
-		ki = c.DPCConfig.ki[tip]
-		kd = c.DPCConfig.kd[tip]
+		kp = c.DPCConfig.kp#[tip]
+		ki = c.DPCConfig.ki#[tip]
+		kd = c.DPCConfig.kd#[tip]
 		c.p.set_regulator_pid(0,2,kp,ki,kd,0.2)
 		volLimit = c.DPCConfig.calculateVolLimit(tip=tip,vol=vol)
 		c.dpc_on(volLimit)
@@ -2475,7 +2475,13 @@ class DPC():
 		return c.DPCConfig.calculateVolLimit(tip, vol)
 
 	@staticmethod
-	def test(tip=20,vol=20,dur=180,dpcOn=True,live=False,leakTest=False):
+	def test(tip=20,vol=20,dur=180,dpcOn=True,live=False,leakTest=False,l='met'):		
+		fname = 'Level/DPCTest_Summary.csv'
+		if not 'DPCTest_Summary.csv' in os.listdir(os.getcwd()+'\\Level'):
+			with open(fname,'w') as f: f.write('date,time,tip,vol,liquid,atm,P1,P2,p_Ref,p_noise,dur,dpc')
+		local = time.localtime()
+		date = f'{local[2]}/{local[1]}/{local[0]}'
+		t_start = f'{local[3]}:{local[4]}:{local[5]}'
 		pickstat = picktip(DPC.currentPos,tip=tip)
 		DPC.currentPos = pickstat[1]
 		if leakTest:
@@ -2540,10 +2546,12 @@ class DPC():
 		DPC.readLog(c.file_name, pref, actual_pref)
 		#c.leak_v20()
 		eject(ejectpos=pickstat[2],tip=tip)
-		c.start_flow(100,5)
-		c.move_rel_z(50,100,500)
+		#c.start_flow(100,5)
+		#c.move_rel_z(50,100,500)
 		dispense(1000)
 		printg('DPC Test Done')
+		with open(fname,'a') as f: 
+			f.write(f'\n{date},{t_start},{tip},{vol},{l},{c.ATM_pressure},{c.AverageP1},{c.AverageP2},{pref},{c.Max_p2-c.Min_p2},{dur},{dpcOn}')
 
 	@staticmethod
 	def warmingUp(monitor=False):

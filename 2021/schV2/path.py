@@ -1,6 +1,5 @@
-import sys, os, json, clr, importlib, threading
+import sys, os, clr, importlib, time
 import serial.tools.list_ports
-import multiprocessing as mp
 from visualize import *
 sys.path.append(r"..\Include")
 sys.path.append(r"..\FmlxDeviceUtils")
@@ -53,8 +52,9 @@ class Device(FmlxDevice):
 			comPorts = list(serial.tools.list_ports.comports())
 			serial_port = str(comPorts[self.__com])[0:5]
 			drv = SlcanFlmxDriver(self.address,serial_port)
-			FmlxDevice.__init__(self, drv, self.address, self.path_obj)
+			super().__init__(drv, self.address, self.path_obj)			
+			printg(f"Connecting {self.deviceObject} to address {self.address}..",end='\r')
 			self.connect()
-			printg(f"Connected : {self.deviceObject}")
+			printg(f"Connecting {self.deviceObject} to address {self.address}.. Connected : {self.deviceObject}")
 		else:
 			printr(f"No device named: {self.deviceObject}")

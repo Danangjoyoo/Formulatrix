@@ -55,18 +55,18 @@ class SPlotter():
 	# Multiprocessing Communication
 	def getConfig(self):
 		with open('splotterConfig/config.json') as config:
-			x = json.load(config); config.close()
+			x = json.load(config)
 			return x
 
 	def __setConfig(self,key,dic):
 		recentConf = self.getConfig()
 		with open('splotterConfig/config.json', 'w') as config:
 			recentConf[key] = dic
-			json.dump(recentConf, config); config.close()
+			json.dump(recentConf, config)
 
 	def resetConfig(self,key=None,warn=True):
 		with open('splotterConfig/originalConfig.json') as origin:
-			recentConf = json.load(origin); origin.close()
+			recentConf = json.load(origin)
 			if key:
 				return recentConf[key]
 			else:
@@ -75,6 +75,7 @@ class SPlotter():
 				self.staticVar = recentConf['staticVar']
 				self.__setConfig('staticVar',self.staticVar)
 				self.limit = recentConf['limit']
+				self.__setConfig('limit',self.limit)
 				if warn: printg("[SPlotter] All config changed to default..")
 
 	def default(self,warn=True):
@@ -154,26 +155,13 @@ class SPlotter():
 				s += str(data) + ',' if i+1 < len(vals) else str(data)
 			file.write(s)
 
-#	def __receiveValue(self):
-#		for i in range(10):
-#			try:
-#				with open('splotterConfig/data.flo','r') as file:
-#					data = file.read()
-#					data = data.split(',')
-#				if len(data) == 11:
-#					self.__lastVals = [float(i) for i in data]
-#					break
-#			except:
-#				pass
-#		return self.__lastVals
-
 	def __receiveValue(self):
 		try:
 			with open('splotterConfig/data.flo','r') as file:
 				data = file.read()
 				data = data.split(',')
-			if len(data) == 11:
-				self.__lastVals = [float(i) for i in data]
+				if len(data) == 11:
+					self.__lastVals = [float(i) for i in data]
 		except:
 			pass
 		return self.__lastVals
@@ -228,12 +216,12 @@ class SPlotter():
 			self.__init = True
 			self.plotStat = True
 			QtWidgets.QApplication.setAttribute(QtCore.Qt.AA_Use96Dpi, True)
-			QtWidgets.QApplication.setAttribute(QtCore.Qt.AA_UseSoftwareOpenGL, True)
+			#QtWidgets.QApplication.setAttribute(QtCore.Qt.AA_UseSoftwareOpenGL, True)
 			QtWidgets.QApplication.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling, True)
 			self.__win = pg.GraphicsLayoutWidget(show=True)
 			self.__win.resize(850,450)
 			self.__win.setWindowTitle('Live Plotter')
-			pg.setConfigOptions(antialias=True)
+			#pg.setConfigOptions(antialias=True)
 			self.__wiplot = self.__win.addPlot(title='SPlotter',rowspan=10) #for side stream
 			#self.__wiplot = self.__win.addPlot(title='SPlotter')
 			self.__wiplot.showGrid(True,True,0.3)
@@ -268,7 +256,7 @@ class SPlotter():
 			self.__writeLog(['tick','time',*self.varPack.keys()])
 			self.timer = QtCore.QTimer()
 			self.timer.timeout.connect(self.__autoUpdate)
-			self.timer.start(0)
+			self.timer.start(20)
 			try: QtGui.QApplication.instance().exec_()
 			except: pass
 			self.terminate()
@@ -361,7 +349,7 @@ class SPlotter():
 			for val in vals: dataStr += str(val)+','
 			f.write(dataStr+'\n')
 
-	def readLog(self):
+	def readLog(self,*sensor):
 		root = tk.Tk()
 		fname = fd.askopenfilename(initialdir='D:/Job/2021 H1/Job 1_LLD P1000/Python Scripts/V2 Python3/DeviceScripts/PlotterLog/')
 		root.destroy()
@@ -370,7 +358,11 @@ class SPlotter():
 		sns.set()
 		for x, key in enumerate(df.keys()):
 			if x <= 10:
-				plt.plot(ticks,[float(i) for i in df[key]],label=key)
+				if not sensor:
+					plt.plot(ticks,[float(i) for i in df[key]],label=key)
+				else:
+					if key in sensor:
+						plt.plot(ticks, [float(i) for i in df[key]],label=key)
 		plt.legend(loc='upper left')
 		plt.title(fname.split('/')[-1])
 		plt.show()
@@ -470,7 +462,7 @@ class SPlotter():
 			os.chdir('..')
 		config ={"varPack":{
 					"valve"	: [[], "valve (OFF: 930 | ON: 935)", false, 5, 930],
-					"pos": [[], "pos", false, 1, 0],
+					"pos"	: [[], "pos", false, 1, 0],
 					"vel"	: [[], "vel", false, 1, 0],
 					"acc"	: [[], "acc", false, 1, 0],
 					"col"	: [[], "col", false, 1, 0],

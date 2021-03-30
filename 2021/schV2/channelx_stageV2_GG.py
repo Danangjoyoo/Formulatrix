@@ -1070,7 +1070,7 @@ def dpc_on(vol_limit=5):
 	Make sure do DPC On after aspirate
 	'''
 	global AverageP2,Max_p2,Min_p2
-	time.sleep(0.2)
+	time.sleep(0.5)
 	average_pressure(100)
 	p_dpc = AverageP2 - (Max_p2 - Min_p2)
 	#p_dpc = AverageP2
@@ -2755,8 +2755,8 @@ def setUp_picktip(targetZ, tip):
 	#else: 
 	#	printr('Picking Tip Failed')
 	#	return False
-"""
 
+"""
 # PIPETTING
 
 class PLLDConfig():
@@ -2765,7 +2765,6 @@ class PLLDConfig():
 	stem_vel = 15
 	stem_acc = 1000
 	colThres = 100
-	currentThresh = 1.3
 	pressThres = {20:4.5, 200:4.5, 1000:2.0}
 	resThres = 500
 	freq = 500
@@ -2780,7 +2779,6 @@ class WLLDConfig():
 	stem_vel = 15
 	stem_acc = 1000
 	colThres = 40
-	currentThresh = 1.3
 	resThres = 50
 	freq = 510
 	freq_delay = 250/1000.0
@@ -2803,12 +2801,14 @@ class DLLTConfig(): # ================== THIS IS V2 CONFIG
 	class Res:
 		stepSize = 2.5
 		bigStep = 10
+		#kp = {20: 0.2, 200: 0.15, 1000: 0.95}
 		kp = {20: 1.2, 200: 0.15, 1000: 0.95}
 		ki = {20: 0, 200: 0, 1000: 0}
 		kd = {20: 0.126, 200: 0, 1000: 0.095}
 		inverted = False
 		stem_vel = {20: 10, 200: 10, 1000:10}
 		stem_acc = {20: 20, 200: 20, 1000:20}
+		#stem_acc = {20: 200, 200: 200, 1000:200}
 		colThres = 40
 		pidPeriod = 1
 
@@ -2830,22 +2830,24 @@ class chipCalibrationConfig():
 	colCompressTolerance = 4.0
 
 class DPCConfig():
-	#kp = {20: 0.05, 	200: 0.05, 			1000: 0.05}
-	#ki = {20: 0.000001, 200: 0.000001, 		1000: 0.000001}
-	#kd = {20: 0.0005, 	200: 0.0005, 		1000: 0.0005}
-	kp = 0.05
-	ki = 0.000001
-	kd = 0.0005
+	#kp = 0.05
+	#ki = 0.000001
+	#kd = 0.0005
+	kp = 0.1
+	ki = 0.00001
+	kd = 0.3
+	#kd = 0.1 #if too aggresive
+	i_limit = 1.0
 
 	@staticmethod
 	def calculateVolLimit(tip,vol):
-		# Carefull with the volume higher than maximum
+		# Careful with the volume higher than maximum
 		if tip == 20: # Max 25 uL | limit range 20 - 8 uL
 			return 20-(abs(vol)*0.48)
 		elif tip == 200: # Max 210 uL | limit range 50 - 7 uL
 			return 50-(abs(vol)*0.20476190476190476)
-		elif tip == 1000: # Max 1050 uL | limit range 250 - 15 uL
-			return 250-(abs(vol)*0.22380952380952382)
+		elif tip == 1000: # Max 1050 uL | limit range 500 - 100 uL
+			return 500-(abs(vol)*0.36363636363636365)
 
 def setUp_plld(tip=20, lowSpeed=False, detectMode=0):
 	printg(f'Setting Up PLLD for P{tip} | Flow: {PLLDConfig.flow[tip]} | Pthres: {PLLDConfig.pressThres[tip]}')
@@ -2862,13 +2864,9 @@ def setUp_plld(tip=20, lowSpeed=False, detectMode=0):
 	p_ref = globals()['AverageP2']
 	p2Max = globals()['Max_p2']
 	p2Min = globals()['Min_p2']
-	#thread_logger(openui=False,maxTick=PLLDConfig.pAvgSample); df = pd.read_csv(globals()['file_name']); p2Pack = [float(i.split(' ')[1]) if type(i) == str else i for i in df[' Pressure_P2'][:len(df[' Pressure_P2'])-1]]; p_ref = np.average(p2Pack); p2Max = max(p2Pack); p2Min = min(p2Pack)
-	pressThres = 0
-	if PLLDConfig.useDynamic:
-		print('P2 Value (Avg: {}, Max:{}, Min:{})'.format(p_ref, p2Max, p2Min))
-		pressThres = ((p2Max - p2Min)/2.0)*PLLDConfig.pressThres[tip]
-	else:
-		pressThres = PLLDConfig.pressThres[tip]
+	pressThres = PLLDConfig.pressThres[tip]
+	print('P2 Value (Avg: {}, Max:{}, Min:{})'.format(p_ref, p2Max, p2Min))
+	if PLLDConfig.useDynamic: pressThres *= ((p2Max - p2Min)/2.0)
 	p_ref += pressThres
 	print('Dynamic:   ',PLLDConfig.useDynamic,'| pressThres: ',pressThres)
 	print('pressLimit:', p_ref,'| resLimit:',sensing.res()-PLLDConfig.resThres)
@@ -3025,8 +3023,8 @@ def get_sensor_lpf_cutoff(*ids):
 
 class ReadSensor():
 	def __init__(self): pass
-	def p1(self): return round(p.read_sensor(SensorID.PRESSURE_P1),2)
-	def p2(self): return round(p.read_sensor(SensorID.PRESSURE_P2),2)
+	def p1(self): return round(p.read_sensor(SensorID.PRESSURE_P1),3)
+	def p2(self): return round(p.read_sensor(SensorID.PRESSURE_P2),3)
 	def res(self): return round(p.read_sensor(SensorID.DLLT_RESISTANCE),1)
 	def col(self): return round(p.read_sensor(SensorID.COLLISION),1)
 	def ntemp1(self): return p.read_sensor(SensorID.NTC_TEMP1)

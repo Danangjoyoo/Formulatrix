@@ -1,4 +1,4 @@
-### Script Version : v2021.3.22.123256
+### Script Version : v2021.3.30.94613
 from misc import *
 import FloDeck_stageV2_GG as deck
 import pregx as pr
@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import tkinter as tk
 from tkinter import filedialog as fd
+from worker import *
 
 
 w_eng_value = 4.5454545454
@@ -32,7 +33,7 @@ P20_picktip_z = -136
 
 #pick_targets    = {20: -199, 200: -190.5, 1000: -143.5}
 pick_targets    = {20: -199, 200: -190, 1000: -143.5}
-asp_targets     = {20: -170, 200: -160, 1000: -110}
+asp_targets     = {20: -180, 200: -170, 1000: -120}
 dsp_targets     = {20: -120, 200: -130, 1000: -80}
 safes           = {20: -95, 200: -85, 1000: -20}
 evades          = {20: -20, 200: -10, 1000: 0}
@@ -560,15 +561,20 @@ def menu():
 	print('calibrate_extra_vol()')
 
 def eject(**kargs):
+	c.start_flow(65)
 	if kargs:
 		if 'tip' in kargs and 'ejectpos' in kargs:
 			if kargs['tip'] == 1000 and kargs['ejectpos'] in deck.wellname: 
 				align(0,kargs['ejectpos'],-120, globals()['safes'][1000])
 			else: 
+				#align(2,'D7',-120)
 				align(1,'D2',-120)
-		else: align(1,'D2',-120)
-	else: align(1,'D2',-120)
-	c.start_flow(50)
+		else:
+			#align(2,'D7',-120)
+			align(1,'D2',-120)
+	else:
+		#align(2,'D7',-120)
+		align(1,'D2',-120)
 	c.eject()
 	abort_flow()
 
@@ -2368,7 +2374,7 @@ class mainLLT():
 		c.set_freq(c.PrereadingConfig.freq, c.PrereadingConfig.freq_delay)
 		noise = [c.sensing.res() for i in range(c.DLLTConfig.sampleSize)]
 		mainLLT.resNoise = max(noise) - min(noise)
-		mainLLT.r1,_ = mainLLT.preReading()
+		mainLLT.r1,_ = mainLLT.preReading(0)
 		r2,_ = mainLLT.preReading(-c.PrereadingConfig.stepDown)
 		print('r1:',mainLLT.r1,'| r2:', r2)
 		mainLLT.threshold = (r2 - mainLLT.r1)*c.PrereadingConfig.thresMultiplier
@@ -2455,13 +2461,15 @@ class DPC():
 		# make sure the tip isn't went to deep, activate the LLT resistance is recommended before runnIng DPC
 		# the tip depth effect the drip possibilities on the tip
 		c.p.select_flow_sensor(0)
-		kp = c.DPCConfig.kp#[tip]
-		ki = c.DPCConfig.ki#[tip]
-		kd = c.DPCConfig.kd#[tip]
-		c.p.set_regulator_pid(0,2,kp,ki,kd,0.2)
+		kp = c.DPCConfig.kp
+		ki = c.DPCConfig.ki
+		kd = c.DPCConfig.kd
+		i_limit = c.DPCConfig.i_limit
+		c.p.set_regulator_pid(0,2,kp,ki,kd,0.1)
 		volLimit = c.DPCConfig.calculateVolLimit(tip=tip,vol=vol)
 		c.dpc_on(volLimit)
 		c.readConfig(c.p.get_regulator_pid,0,2)
+		return volLimit
 
 	@staticmethod
 	def off(): c.dpc_off()
@@ -2475,15 +2483,30 @@ class DPC():
 		return c.DPCConfig.calculateVolLimit(tip, vol)
 
 	@staticmethod
-	def test(tip=20,vol=20,dur=180,dpcOn=True,live=False,leakTest=False,l='met'):		
-		fname = 'Level/DPCTest_Summary.csv'
+	def test(tip=20,vol=20,dur=180,dpcOn=True,live=False,leakTest=False,l='met'):
+		fname = 'Level/DPCTest_Summary.csv'; tlen = 32
 		if not 'DPCTest_Summary.csv' in os.listdir(os.getcwd()+'\\Level'):
-			with open(fname,'w') as f: f.write('date,time,tip,vol,liquid,atm,P1,P2,p_Ref,p_noise,dur,dpc')
+			with open(fname,'w') as f: 
+				head = ''
+				for i in range(tlen): head += '{},' if i < tlen-1 else '{}'
+				f.write(head.format(
+					'date','time','tip','vol','volLimit','liquid',
+					'p_reg','p_atm',
+					'p1_init','p2_init','dp_init',
+					'p1_lld','p2_lld','dp_lld',
+					'p1_llt','p2_llt','dp_llt',
+					'p1_preAsp','p2_preAsp','dp_preAsp',
+					'p1_postAsp','p2_postAsp', 'dp_postAsp',
+					'p2_lld-p2_llt','p2_lld-p2_preAsp','p2_llt-p2_preAsp',
+					'p2_dpcPref','pnoise','p1ErrorSum','p1ErrorRate','p2ErrorSum','p2ErrorRate'))
 		local = time.localtime()
 		date = f'{local[2]}/{local[1]}/{local[0]}'
 		t_start = f'{local[3]}:{local[4]}:{local[5]}'
 		pickstat = picktip(DPC.currentPos,tip=tip)
 		DPC.currentPos = pickstat[1]
+		p_reg = np.average([pr.preg.read_feedback_sensor(2) for i in range(10)])
+		p1_init = np.average([c.sensing.p1() for i in range(10)])
+		p2_init = np.average([c.sensing.p2() for i in range(10)])
 		if leakTest:
 			leakRate = DPC.leakTest()
 			printy(f"Leak Rate: {leakRate}")
@@ -2491,45 +2514,59 @@ class DPC():
 			time.sleep(5) # after leak test, you have to stabilize the sensor to avoid any errors
 		tare()
 		DPC.runStat = True
-		align(1,'D10',globals()['asp_targets'][tip]+30)
-		lld.findSurface(-170,tip=tip)
+		align(1,'D10',globals()['asp_targets'][tip]+40)
+		#c.start_logger(sensorm=2608+8192,openui=False); time.sleep(0.3)
+		#dpc.warmingUp(tip,vol,5)
+		lld.findSurface(globals()['asp_targets'][tip],tip=tip)
+		p1_lld = c.sensing.p1()
+		p2_lld = c.sensing.p2()
+		#p2_lld = c.PostTrigger.press
+		llt.preReading(-1)
+		p1_llt = c.sensing.p1()
+		p2_llt = c.sensing.p2()
 		if tip == 1000:	
 			if vol > 500: c.move_rel_z(-1.5,10,100)
-			c.p.select_flow_sensor(1)		
+			c.p.select_flow_sensor(1)
 		c.start_logger(sensorm=2608+8192,openui=False)
+		p1_preAsp = c.sensing.p1()
+		p2_preAsp = c.sensing.p2()
 		aspirate(vol)
-		if dpcOn:
-			DPC.on(tip=tip, vol=vol)
+		p1_postAsp= c.sensing.p1()
+		p2_postAsp = c.sensing.p2()
+		
+		if dpcOn: 
+			volLimit = DPC.on(tip=tip, vol=vol)
+		else:
+			volLimit = 0
+
 		actual_pref = c.AverageP2
 		pref = c.AverageP2 - (c.Max_p2 - c.Min_p2)
-
-		def wait(dur):
-			c.move_rel_z(90,15,1000)
-			t0 = time.perf_counter()
-			now = time.perf_counter()
-			printy('Press alt+ESC to abort..')
-			while now-t0 < dur:
-				now = time.perf_counter()
-				DPC.counter = now - t0
-				printy(' elapsed: {}s end in {}s\t'.format(int(DPC.counter), dur), end='\r')
-				if kb.is_pressed('alt+ESC'):
-					printy('\nelapsed: {}s end in {}s\t'.format(int(DPC.counter), dur))
-					printr('DPC Test Aborted')
-					break
 
 		# Liveplotter
 		if live:
 			splotter.default()
 			splotter.addStaticChart('Actual P_Ref',actual_pref,color=(50,250,40),copyScaling='p2')
 			splotter.addStaticChart('Fake P_Ref',pref,color=(250,200,40),copyScaling='p2')
-			splotter.liveplot(p1=True,p2=True,valve=True,limit=300,clean=False)			
+			splotter.liveplot(p1=True,p2=True,valve=True,limit=900,clean=False)		
 		
-		wait(dur)
+		c.move_rel_z(80,15,1000)
+		t0 = time.perf_counter()
+		now = time.perf_counter()
+		printy('Press alt+ESC to abort..')
+		while now-t0 < dur:
+			now = time.perf_counter()
+			DPC.counter = now - t0
+			printy(' elapsed: {}s end in {}s\t'.format(int(DPC.counter), dur), end='\r')
+			if kb.is_pressed('alt+ESC'):
+				printy('\nelapsed: {}s end in {}s\t'.format(int(DPC.counter), dur))
+				printr('DPC Test Aborted')
+				break
+
 		splotter.terminate()
 		splotter.default()
 
 		winsound.Beep(1300,1000)
-		lld.findSurface(-170,lld='wet',tip=tip)
+		lld.findSurface(globals()['asp_targets'][tip],lld='wet',tip=tip)
 		if dpcOn: c.dpc_off()
 		if tip == 1000: c.p.select_flow_sensor(1)
 		dispense(vol*1.2)
@@ -2539,41 +2576,117 @@ class DPC():
 		c.move_rel_z(20,100,500)
 		#dispense(vol*3)
 		c.move_rel_z(30,100,500)
-		time.sleep(2)
+		time.sleep(3)
 		if leakTest:
 			leakRate = DPC.leakTest()
 			printy(f"Leak Rate: {leakRate}")
-		DPC.readLog(c.file_name, pref, actual_pref)
-		#c.leak_v20()
+		p1e, p2e, dpcTick = DPC.readLog(c.file_name, pref, actual_pref)
+		p1eRate = p1e/dpcTick*1000
+		p2eRate = p2e/dpcTick*1000		
+		c.start_flow(100)
 		eject(ejectpos=pickstat[2],tip=tip)
-		#c.start_flow(100,5)
-		#c.move_rel_z(50,100,500)
-		dispense(1000)
+		c.abort_flow()
+		
+		dpc.coolingDown(5)
+
+		c.move_rel_z(50,100,500)
 		printg('DPC Test Done')
-		with open(fname,'a') as f: 
-			f.write(f'\n{date},{t_start},{tip},{vol},{l},{c.ATM_pressure},{c.AverageP1},{c.AverageP2},{pref},{c.Max_p2-c.Min_p2},{dur},{dpcOn}')
+		with open(fname,'a') as f:
+			head2 = '\n'
+			for i in range(tlen): head2 += '{},' if i < tlen-1 else '{}'
+			f.write(head2.format(
+				date,t_start,tip,vol,volLimit,l,
+				p_reg,c.ATM_pressure,
+				p1_init, p2_init, p2_init - p1_init,
+				p1_lld, p2_lld, p2_lld - p1_lld,
+				p1_llt, p2_llt, p2_llt - p1_llt,
+				p1_preAsp, p2_preAsp, p2_preAsp - p1_preAsp,
+				p1_postAsp, p2_postAsp, p2_postAsp - p1_postAsp,
+				p2_lld-p2_llt,p2_lld-p2_preAsp,p2_llt-p2_preAsp,
+				pref, c.Max_p2-c.Min_p2, p1e, p1eRate, p2e, p2eRate))
 
 	@staticmethod
-	def warmingUp(monitor=False):
-		if monitor: splotter.liveplot(p1=True,p2=True,valve=True,limit=1000)
+	def calculateVol(vol=0):
+		printy('Calculating VOlume..')
+		df = pd.read_csv(c.file_name)
+		tick = [int(i) for i in df['Tick'][:len(df)-2]]
+		p1 = [float(i) for i in df['Pressure_P1'][:len(df)-2]]
+		p2 = [float(i) for i in df['Pressure_P2'][:len(df)-2]]
+		valve =  df['Valve_in_open'][:len(df)-2]
+		valvePoint = []
+		for i in range(len(valve)):
+			if i > 0:
+				if valve[i] and not valve[i-1]:
+					if len(valvePoint) == 0: valvePoint.append(i)
+				elif not valve[i] and valve[i-1]:
+					if len(valvePoint) == 1: valvePoint.append(i)
+
+		noiseP1 = max(p1[:10]) - min(p1[:10])
+		noiseP2 = max(p2[:10]) - min(p2[:10])
+		dp = [p2[i] - p1[i] for i in range(len(p1))]
+		aspPoint = []
+		#for i, d in enumerate(dp[valvePoint[0]:valvePoint[1]]):
+		for i, d in enumerate(dp):
+			if d > dp[0] + noiseP1 + noiseP2:
+				if len(aspPoint) == 0:
+					aspPoint.append(i)
+			else:
+				if len(aspPoint) == 1:
+					aspPoint.append(i)		
+
+		scale = c.p.get_sensor_config(int(c.p.get_selected_flow_sensor()))['cal_static_asp']
+		offset = c.p.get_sensor_config(int(c.p.get_selected_flow_sensor()))['flow_drift_asp']
+
+		calculatedVol = 0
+		#for d in dp[aspPoint[0]:aspPoint[1]]:
+		for d in dp:
+			calculatedVol += (d*scale + offset)/1000
+
+		printm('Calculated Vol:', calculatedVol)
+
+	@staticmethod
+	def warmingUp(tip,vol,dur=60):
+		printy(f'DPC Warming Up for {dur}s')
 		a = time.perf_counter()
-		printb("... DPC Warming Up ...")
-		#printb("Mini e-reg Tuning..")
-		##c.set_mini2()
-		#printb("Leak Test..")
-		#DPC.leakTest()
-		printb("Air Pipetting..")
-		c.start_flow(150,10)
-		for flow in [0,1]:
-			c.p.select_flow_sensor(flow)
-			aspirate(1000); time.sleep(3)
-			dpc.on(1000); time.sleep(5); dpc.off()
-			dispense(1000); time.sleep(3)
-		printb('Stabilizing..')
-		time.sleep(10)
+		dpc.on(tip,vol)
+		while time.perf_counter()-a < dur: 
+			if c.p.get_valve():
+				pass
+			else:
+				dpc.on(tip,vol)
+		dpc.off()
+		printg(f"Warming Up Completed! Elapsed: {int(time.perf_counter() - a)} s")
+
+	@staticmethod
+	def coolingDown(dur):
+		printb(f'COOLING DOWN for {dur} s, please wait..')
+		printb('hi blow..')
+		c.p.select_flow_sensor(1)
+		c.start_flow(1500,dur)
+		time.sleep(1)
+		printb('low blow..')
 		c.p.select_flow_sensor(0)
-		if monitor: splotter.terminate()
-		printb(f"Warming Up Completed! Elapsed: {int(time.perf_counter() - a)} s")
+		c.start_flow(150,dur)
+
+	@staticmethod
+	def multipleTest(n=6):
+		fname = 'Level/DPCTest_Summary.csv'; tlen = 32
+		with open(fname,'a') as f: 
+			head = '\n\n'
+			for i in range(tlen): head += '{},' if i < tlen-1 else '{}'
+			f.write(head.format(
+					'date','time','tip','vol','volLimit','liquid',
+					'p_reg','p_atm',
+					'p1_init','p2_init','dp_init',
+					'p1_lld','p2_lld','dp_lld',
+					'p1_llt','p2_llt','dp_llt',
+					'p1_preAsp','p2_preAsp','dp_preAsp',
+					'p1_postAsp','p2_postAsp', 'dp_postAsp',
+					'p2_lld-p2_llt','p2_lld-p2_preAsp','p2_llt-p2_preAsp',
+					'p2_dpcPref','pnoise','p1ErrorSum','p1ErrorRate','p2ErrorSum','p2ErrorRate'))
+		for i in range(n):
+			printbb('Test No :',i+1)
+			dpc.test(20,20,60,1,1)
 
 	@staticmethod
 	def leakTest():
@@ -2636,7 +2749,7 @@ class DPC():
 		dpcEnd = [0, 0]
 		for i, val in enumerate(valve):
 			if val and dpcStart[0] == 0: dpcStart[0] += 1
-			if not val and dpcStart[0] == 1: dpcStart[0] += 1            
+			if not val and dpcStart[0] == 1: dpcStart[0] += 1
 			if val and dpcStart[0] == 2:
 				dpcStart[0] += 1
 				dpcStart[1] = i
@@ -2652,8 +2765,11 @@ class DPC():
 		if not actual_pref: actual_pref = devp2[0]
 		avgDevs2 = round(np.average([abs(actual_pref-i) for i in devp2]),3)
 
+		p1Error = sum([abs(devp1[0] - p) for p in devp1])
+		p2Error = sum([abs(devp2[0] - p) for p in devp2])
+
 		# Deviation chart
-		ax2.title.set_text(f'DPC Chart | Avg Dev: Actual = {avgDevs2} ~ Fake = {avgDevs1}')
+		ax2.title.set_text(f'DPC Chart | Actual = {avgDevs2}; Fake = {avgDevs1} | ErrorRate: p1 = {round(p1Error/len(devtick)*1000,2)} mbar/s; p2 = {round(p2Error/len(devtick)*1000,2)} mbar/s')
 		ax2.plot(devtick, devp1, label='P1')
 		ax2.plot(devtick, devp2, label='P2')
 		pline = [pref]*len(devtick)
@@ -2661,9 +2777,11 @@ class DPC():
 		fline = [actual_pref]*len(devtick)
 		ax2.plot(devtick,fline, 'g--', label='Actual DPC P_Ref')
 		ax2.legend(loc='lower right')
-		plt.show()
+		#plt.show()
+		return p1Error, p2Error, len(devtick)
 
 dpc = DPC
+
 
 # NOTIFICATION & ALERT
 class avoidInpErr():
@@ -2722,7 +2840,7 @@ class avoidInpErr():
 			avoidInpErr.warningBeep()
 			if reminds:
 				avoidInpErr.reminderWarningBeep(reminds)
-		try:            
+		try:
 			inputs = input(words)
 			if test_function:
 				test_function(inputs)

@@ -52,7 +52,7 @@ class Device(FmlxDevice):
 			comPorts = list(serial.tools.list_ports.comports())
 			serial_port = str(comPorts[self.__com])[0:5]
 			drv = SlcanFlmxDriver(self.address,serial_port)
-			super().__init__(drv, self.address, self.path_obj)			
+			super(Device, self).__init__(drv, self.address, self.path_obj)			
 			printg(f"Connecting {self.deviceObject} to address {self.address}..",end='\r')
 			self.connect()
 			printg(f"Connecting {self.deviceObject} to address {self.address}.. Connected : {self.deviceObject}")

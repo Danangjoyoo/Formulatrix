@@ -270,7 +270,7 @@ def thread_logger(motorm=0,sensorm=16+32,openui=True,maxTick=None):
 				print("all data: ",len(all_data))
 				break
 			if maxTick: 
-				if len(all_data) >= maxTick: break
+				if len(all_data) >= 2*maxTick: break
 			time.sleep(0.01) 
 		data = chunks(all_data, sum)
 		data_length = len(data)
@@ -308,7 +308,7 @@ def read_logger(filename=None):
 
 # =========================================== EVENT =========================================================================================
 def motor_status(motor_id):
-	print(decode_motor_status(p.get_motor_status(motor_id)))
+	print('[EVENT]',decode_motor_status(p.get_motor_status(motor_id)))
 
 def decode_motor_status(motor_status):
 	if(motor_status==0):
@@ -329,31 +329,31 @@ def decode_motor_error(motor_error_code):
 		return "unknown error"
 
 def handle_motor_move_started(motor_id):
-	print("Motor Move Started on id " + str(motor_id))
+	print('[EVENT]',"Motor Move Started on id " + str(motor_id))
 
 def handle_motor_error_occured(motor_id, motor_error_code):
 	global motor_error
-	print("Motor Error id=" + str(motor_id) + ", Status=" + decode_motor_error(motor_error_code))
+	print('[EVENT]',"Motor Error id=" + str(motor_id) + ", Status=" + decode_motor_error(motor_error_code))
 	motor_error = True
 
 def handle_move_done(motor_id,status,position):
 	global move_done
-	print("Move Done:id=" + str(motor_id) + ", Status=" + str(status) + ", position=" + str(position))
+	print('[EVENT]',"Move Done:id=" + str(motor_id) + ", Status=" + str(status) + ", position=" + str(position))
 	move_done = True
 
 def handle_home_done(motor_id,home_pos,pos):
 	global home_done
-	print("Home Done on Motor:" + str(motor_id) + ", Home Pos=" + str(home_pos) + ", pos=" + str(pos))
+	print('[EVENT]',"Home Done on Motor:" + str(motor_id) + ", Home Pos=" + str(home_pos) + ", pos=" + str(pos))
 	home_done = True
 	
 def handle_on_input_changed(input_id, is_on):
-	print("Input changed on:" + str(input_id) + ", is On =" + str(is_on))
+	print('[EVENT]',"Input changed on:" + str(input_id) + ", is On =" + str(is_on))
 
 def handle_on_sensor_out_of_bounds(id, limit_type, value):
-	print("Sensor Out of Bounds, id=",id," limit type =",limit_type," Value=", value)
+	print('[EVENT]',"Sensor Out of Bounds, id=",id," limit type =",limit_type," Value=", value)
 
 def handle_on_liquid_level_tracker_stop(mode, status):
-	print("Liquid level tracker stopped mode=", mode, ", Status=", status)
+	print('[EVENT]',"Liquid level tracker stopped mode=", mode, ", Status=", status)
 
 def handle_average_done(pressure1,pressure2,temp1,temp2,min_P1, max_P1, min_P2, max_P2):
 	global AverageP1
@@ -399,7 +399,7 @@ def handle_tare_done(atm_pressure,dp_offset,temp1,temp2,cal_asp,cal_dsp):
 	CAL_ASP = cal_asp
 	CAL_DSP = cal_dsp
 	if tare_done_req:
-		print("Tare Done:")
+		print('[EVENT]',"Tare Done:")
 		print("	ATM=" + str(atm_pressure))
 		print("	dp_offset=" + str(Dp_Offset))
 		print("	temp1=" + str(Temp_P1))
@@ -429,7 +429,7 @@ def handle_calibrate_finish(is_found,press1,press2,dp):
 		Press_P2 = press2
 		Press_Dp = dp
 
-		print("Calibrate finish:")
+		print('[EVENT]',"Calibrate finish:")
 		print("	P1 = " + str(Press_P1))
 		print("	P2 = " + str(Press_P2))
 		print("	dp = " + str(Press_Dp))
@@ -445,7 +445,7 @@ def handle_vol_count_finish(total_time_ms, sens_vol):
 	global Count_volume_done
 	Total_time_ms = total_time_ms
 	Sensed_vol= sens_vol
-	print("Volume Count finish:")
+	print('[EVENT]',"Volume Count finish:")
 	print("	Total Time = " + str(Total_time_ms))
 	print("	Sens Vol = " + str(Sensed_vol))
 	Count_volume_done = True
@@ -483,7 +483,7 @@ def handle_pipetting_done(total_time_ms, alc_time_ms, sampling_vol, total_sampli
 	Threshold = threshold
 	Sensed_vol = sens_volume
 	if pipetting_done_req:
-		print("Pipetting Done:")
+		print('[EVENT]',"Pipetting Done:")
 		print("	total time = " + str(Total_time_ms))
 		print("	Alc time = " + str(Alc_time_ms))
 		print("	Sampling vol = " + str(Sampling_vol))
@@ -547,7 +547,7 @@ def handle_pipetting_error(error_code,sampling_vol,total_sampling,last_flow,p1_o
 		Sensed_vol = sens_volume
 
 		if pipetting_done_req:
-			print("Pipetting Error:")
+			print('[EVENT]',"Pipetting Error:")
 			print("	1 Pipetting Error code\t= " + str(ALC_error_code))
 			print("	2 Sampling vol\t\t= " + str(Sampling_vol))
 			print("	3 Total Sampling\t= " + str(Total_sampling))
@@ -595,16 +595,16 @@ def handle_on_valve_closed(closed_time):
 
 	#print "Valve Closed time=" + str(closed_time)
 def handle_on_regulate_pressure_aborted():
-	print("Regulate pressure function aborted by vol limit")
+	print('[EVENT]',"Regulate pressure function aborted by vol limit")
 def handle_motor_move_started(motor_id):
-	print("Motor Move Started on id " + str(motor_id))
+	print('[EVENT]',"Motor Move Started on id " + str(motor_id))
 
 knalimit=False
 
 def handle_on_regulate_pressure_limit_reach():
 	global knalimit
 	knalimit=True
-	print("Regulate pressure function volume reached")
+	print('[EVENT]',"Regulate pressure function volume reached")
 
 P2_valve_close = None
 P2_t1 = None
@@ -647,13 +647,13 @@ def handle_on_air_transfer_detected(flow, time_ms):
 	global phase1_air_tr
 	global air_transfer_by_flow
 	air_transfer_by_flow += 1
-	print("air transfer detected flow =", flow, ", time=", time_ms)
+	print('[EVENT]',"air transfer detected flow =", flow, ", time=", time_ms)
 	phase1_air_tr = True
 	
 	
 
 def handle_on_clog_detected(flow, time_ms):
-	print("clog detected flow =", flow, ", time=", time_ms)
+	print('[EVENT]',"clog detected flow =", flow, ", time=", time_ms)
 
 #============== INIT ================================================================================================
 
@@ -2591,7 +2591,7 @@ def hi_flow(stat=1):
 ################### IMPROVEMENTS ################################ IMPROVEMENTS ################################################## IMPROVEMENTS #################################################
 
 # PICKTIP
-
+"""
 class PicktipConfig:
 	acc = {	'1st' : 1000,
 			'2nd' : 1000,
@@ -2756,7 +2756,7 @@ def setUp_picktip(targetZ, tip):
 	#	printr('Picking Tip Failed')
 	#	return False
 
-"""
+
 # PIPETTING
 
 class PLLDConfig():
@@ -2801,14 +2801,14 @@ class DLLTConfig(): # ================== THIS IS V2 CONFIG
 	class Res:
 		stepSize = 2.5
 		bigStep = 10
-		#kp = {20: 0.2, 200: 0.15, 1000: 0.95}
-		kp = {20: 1.2, 200: 0.15, 1000: 0.95}
+		kp = {20: 0.2, 200: 0.15, 1000: 0.95}
+		#kp = {20: 1.2, 200: 0.15, 1000: 0.95}
 		ki = {20: 0, 200: 0, 1000: 0}
 		kd = {20: 0.126, 200: 0, 1000: 0.095}
 		inverted = False
 		stem_vel = {20: 10, 200: 10, 1000:10}
-		stem_acc = {20: 20, 200: 20, 1000:20}
-		#stem_acc = {20: 200, 200: 200, 1000:200}
+		#stem_acc = {20: 20, 200: 20, 1000:20}
+		stem_acc = {20: 200, 200: 200, 1000:200}
 		colThres = 40
 		pidPeriod = 1
 
@@ -2830,9 +2830,6 @@ class chipCalibrationConfig():
 	colCompressTolerance = 4.0
 
 class DPCConfig():
-	#kp = 0.05
-	#ki = 0.000001
-	#kd = 0.0005
 	kp = 0.1
 	ki = 0.00001
 	kd = 0.3
@@ -2844,9 +2841,9 @@ class DPCConfig():
 		# Careful with the volume higher than maximum
 		if tip == 20: # Max 25 uL | limit range 20 - 8 uL
 			return 20-(abs(vol)*0.48)
-		elif tip == 200: # Max 210 uL | limit range 50 - 7 uL
-			return 50-(abs(vol)*0.20476190476190476)
-		elif tip == 1000: # Max 1050 uL | limit range 500 - 100 uL
+		elif tip == 200: # Max 210 uL | limit range 100 - 20 uL
+			return 100-(abs(vol)*0.38095238095238093)
+		elif tip == 1000: # Max 1100 uL | limit range 500 - 100 uL
 			return 500-(abs(vol)*0.36363636363636365)
 
 def setUp_plld(tip=20, lowSpeed=False, detectMode=0):

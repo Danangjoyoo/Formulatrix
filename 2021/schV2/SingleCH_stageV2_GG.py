@@ -1,4 +1,4 @@
-### Script Version : v2021.3.30.94613
+### Script Version : v2021.4.1.91541
 from misc import *
 import FloDeck_stageV2_GG as deck
 import pregx as pr
@@ -32,7 +32,7 @@ P20_picktip_z = -136
 #Zpick   = [-114,-104]
 
 #pick_targets    = {20: -199, 200: -190.5, 1000: -143.5}
-pick_targets    = {20: -199, 200: -190, 1000: -143.5}
+pick_targets    = {20: -199, 200: -188.0, 1000: -143.5}
 asp_targets     = {20: -180, 200: -170, 1000: -120}
 dsp_targets     = {20: -120, 200: -130, 1000: -80}
 safes           = {20: -95, 200: -85, 1000: -20}
@@ -2484,7 +2484,7 @@ class DPC():
 
 	@staticmethod
 	def test(tip=20,vol=20,dur=180,dpcOn=True,live=False,leakTest=False,l='met'):
-		fname = 'Level/DPCTest_Summary.csv'; tlen = 32
+		fname = 'Level/DPCTest_Summary.csv'; tlen = 37
 		if not 'DPCTest_Summary.csv' in os.listdir(os.getcwd()+'\\Level'):
 			with open(fname,'w') as f: 
 				head = ''
@@ -2495,9 +2495,9 @@ class DPC():
 					'p1_init','p2_init','dp_init',
 					'p1_lld','p2_lld','dp_lld',
 					'p1_llt','p2_llt','dp_llt',
-					'p1_preAsp','p2_preAsp','dp_preAsp',
-					'p1_postAsp','p2_postAsp', 'dp_postAsp',
-					'p2_lld-p2_llt','p2_lld-p2_preAsp','p2_llt-p2_preAsp',
+					'p1_preAsp','p2_preAsp','dp_preAsp','temp1_preAsp','temp2_preAsp',
+					'p1_postAsp','p2_postAsp', 'dp_postAsp','temp1_postAsp','temp2_postAsp',
+					'p1_dpAsp','p2_dpDsp','p1_dTemp','p2_dTemp',
 					'p2_dpcPref','pnoise','p1ErrorSum','p1ErrorRate','p2ErrorSum','p2ErrorRate'))
 		local = time.localtime()
 		date = f'{local[2]}/{local[1]}/{local[0]}'
@@ -2530,9 +2530,13 @@ class DPC():
 		c.start_logger(sensorm=2608+8192,openui=False)
 		p1_preAsp = c.sensing.p1()
 		p2_preAsp = c.sensing.p2()
+		temp1_preAsp = c.sensing.ptemp1()
+		temp2_preAsp = c.sensing.ptemp2()
 		aspirate(vol)
 		p1_postAsp= c.sensing.p1()
 		p2_postAsp = c.sensing.p2()
+		temp1_postAsp = c.sensing.ptemp1()
+		temp2_postAsp = c.sensing.ptemp2()
 		
 		if dpcOn: 
 			volLimit = DPC.on(tip=tip, vol=vol)
@@ -2543,7 +2547,7 @@ class DPC():
 		pref = c.AverageP2 - (c.Max_p2 - c.Min_p2)
 
 		# Liveplotter
-		if live:
+		if live:			
 			splotter.default()
 			splotter.addStaticChart('Actual P_Ref',actual_pref,color=(50,250,40),copyScaling='p2')
 			splotter.addStaticChart('Fake P_Ref',pref,color=(250,200,40),copyScaling='p2')
@@ -2574,7 +2578,7 @@ class DPC():
 		c.stop_logger()
 		DPC.runStat = False
 		c.move_rel_z(20,100,500)
-		#dispense(vol*3)
+		dispense(vol*0.5)
 		c.move_rel_z(30,100,500)
 		time.sleep(3)
 		if leakTest:
@@ -2600,9 +2604,9 @@ class DPC():
 				p1_init, p2_init, p2_init - p1_init,
 				p1_lld, p2_lld, p2_lld - p1_lld,
 				p1_llt, p2_llt, p2_llt - p1_llt,
-				p1_preAsp, p2_preAsp, p2_preAsp - p1_preAsp,
-				p1_postAsp, p2_postAsp, p2_postAsp - p1_postAsp,
-				p2_lld-p2_llt,p2_lld-p2_preAsp,p2_llt-p2_preAsp,
+				p1_preAsp, p2_preAsp, p2_preAsp - p1_preAsp, temp1_preAsp, temp2_preAsp,
+				p1_postAsp, p2_postAsp, p2_postAsp - p1_postAsp, temp1_postAsp, temp2_postAsp,
+				p1_preAsp - p2_postAsp, p2_preAsp - p2_postAsp, temp1_preAsp - temp1_postAsp, temp2_preAsp - temp2_postAsp,
 				pref, c.Max_p2-c.Min_p2, p1e, p1eRate, p2e, p2eRate))
 
 	@staticmethod
@@ -2670,7 +2674,7 @@ class DPC():
 
 	@staticmethod
 	def multipleTest(n=6):
-		fname = 'Level/DPCTest_Summary.csv'; tlen = 32
+		fname = 'Level/DPCTest_Summary.csv'; tlen = 37
 		with open(fname,'a') as f: 
 			head = '\n\n'
 			for i in range(tlen): head += '{},' if i < tlen-1 else '{}'
@@ -2680,13 +2684,14 @@ class DPC():
 					'p1_init','p2_init','dp_init',
 					'p1_lld','p2_lld','dp_lld',
 					'p1_llt','p2_llt','dp_llt',
-					'p1_preAsp','p2_preAsp','dp_preAsp',
-					'p1_postAsp','p2_postAsp', 'dp_postAsp',
-					'p2_lld-p2_llt','p2_lld-p2_preAsp','p2_llt-p2_preAsp',
+					'p1_preAsp','p2_preAsp','dp_preAsp','temp1_preAsp','temp2_preAsp',
+					'p1_postAsp','p2_postAsp', 'dp_postAsp','temp1_postAsp','temp2_postAsp',
+					'p1_dpAsp','p2_dpDsp','p1_dTemp','p2_dTemp',
 					'p2_dpcPref','pnoise','p1ErrorSum','p1ErrorRate','p2ErrorSum','p2ErrorRate'))
 		for i in range(n):
 			printbb('Test No :',i+1)
-			dpc.test(20,20,60,1,1)
+			#dpc.test(20,20,60,1,1)
+			dpc.test(1000,1000,60,1,1)
 
 	@staticmethod
 	def leakTest():
@@ -2777,11 +2782,18 @@ class DPC():
 		fline = [actual_pref]*len(devtick)
 		ax2.plot(devtick,fline, 'g--', label='Actual DPC P_Ref')
 		ax2.legend(loc='lower right')
-		#plt.show()
+		plt.show()
 		return p1Error, p2Error, len(devtick)
 
 dpc = DPC
 
+def go():
+	align(0,'A1',-100)
+	for i in range(6):
+		printbb('ITER',i)
+		c.move_abs_z(-188.4,10,10)
+		c.leak_v20()
+		c.move_abs_z(-150.3,100,100)
 
 # NOTIFICATION & ALERT
 class avoidInpErr():

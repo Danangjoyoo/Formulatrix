@@ -256,7 +256,7 @@ class SPlotter():
 			self.__writeLog(['tick','time',*self.varPack.keys()])
 			self.timer = QtCore.QTimer()
 			self.timer.timeout.connect(self.__autoUpdate)
-			self.timer.start(20)
+			self.timer.start(0)
 			try: QtGui.QApplication.instance().exec_()
 			except: pass
 			self.terminate()

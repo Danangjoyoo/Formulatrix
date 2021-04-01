@@ -49,13 +49,13 @@ def handle_on_input_changed(input_id, is_on):
     pass
 def handle_move_done(motor_id,status,position):
     global move_done
-    print("Move Done:id=" + str(motor_id) + ", Status=" + str(status) + ", position=" + str(position))
+    print('[EVENT]',"Move Done:id=" + str(motor_id) + ", Status=" + str(status) + ", position=" + str(position))
     move_done[motor_id] = True
 def handle_motor_error_occured(motor_id,motor_error_code):
-    print("Motor Error ", motor_id, motor_error_code)
+    print('[EVENT]',"Motor Error ", motor_id, motor_error_code)
 def handle_home_done(motor_id,home_pos,pos):
     global home_done
-    print("Home Done on Motor:" + str(motor_id) + ", Home Pos=" + str(home_pos) + ", pos=" + str(pos))
+    print('[EVENT]',"Home Done on Motor:" + str(motor_id) + ", Home Pos=" + str(home_pos) + ", pos=" + str(pos))
     home_done[motor_id] = True
 
 d.motor_home_done += handle_home_done

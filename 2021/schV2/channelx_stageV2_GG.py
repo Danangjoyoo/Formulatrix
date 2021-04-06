@@ -262,7 +262,8 @@ def thread_logger(motorm=0,sensorm=16+32,openui=True,maxTick=None):
 					break
 			get_data = p.read_log_stream_data()['data']
 			all_data += get_data
-			time.sleep(0.01)
+			print(get_data)
+			#time.sleep(0.01)
 		while(1):
 			get_data = p.read_log_stream_data()['data']
 			all_data += get_data
@@ -1070,10 +1071,11 @@ def dpc_on(vol_limit=5):
 	Make sure do DPC On after aspirate
 	'''
 	global AverageP2,Max_p2,Min_p2
+	p.set_sensor_lpf_cutoff(SensorID.PRESSURE_P1, True, DPCConfig.lpf_freq)
+	p.set_sensor_lpf_cutoff(SensorID.PRESSURE_P2, True, DPCConfig.lpf_freq)
 	time.sleep(0.5)
-	average_pressure(100)
+	average_pressure(DPCConfig.sampleSize)
 	p_dpc = AverageP2 - (Max_p2 - Min_p2)
-	#p_dpc = AverageP2
 	p.start_regulator_mode(1,p_dpc,2,True,vol_limit)
 	printg("DPC ON at P2 = {} with Vol Limit = {}".format(round(p_dpc,2), round(vol_limit,2)))
 	return p_dpc
@@ -2387,7 +2389,7 @@ def DLLT_stop():
 	clear_abort_config(1)
 	p.stop_liquid_tracker()
 
-def leak_v20(limits=[400],dur=60):
+def leak_v20(limits=[350],dur=60):
 	#for FW 0.8.15
 	global pipetting_done_req
 	global  tare_done_req
@@ -2416,7 +2418,8 @@ def leak_v20(limits=[400],dur=60):
 			p.start_regulator_mode(0,ATM_pressure+(i*x),1,0,0)
 			time.sleep(3)
 			abort_flow()
-			time.sleep(0.2)
+
+			time.sleep(0.8) #from pak idris
 
 			average_pressure(1000)
 
@@ -2459,8 +2462,6 @@ def leak_v20(limits=[400],dur=60):
 			print('Status : ', status)
 			print(' ')
 
-
-
 			mode_r = i
 			limit_r = x
 			start_r = [P1start,P2start]
@@ -2476,7 +2477,7 @@ def leak_v20(limits=[400],dur=60):
 	print('Leak rate vacuum\t: '+str(result[1][5])+' mbar/min at ',str(result[1][2][0])+' mbar')
 	pipetting_done_req = True
 	tare_done_req = True
-	return max(result[0][5], result[1][5])
+	return [result[0][5], result[1][5]]
 
 def count_vol(mode):
 	#tare_pressure()
@@ -2591,7 +2592,7 @@ def hi_flow(stat=1):
 ################### IMPROVEMENTS ################################ IMPROVEMENTS ################################################## IMPROVEMENTS #################################################
 
 # PICKTIP
-"""
+
 class PicktipConfig:
 	acc = {	'1st' : 1000,
 			'2nd' : 1000,
@@ -2640,6 +2641,7 @@ def setUp_picktip(targetZ, tip):
 		time.sleep(0.1)
 
 		# RETRACT MOVE
+		printbr('POS',get_motor_pos())
 		clear_motor_fault()		
 		p.set_encoder_correction_enable(0,1)
 		move_abs_z(PicktipConfig.retractDist[tip], PicktipConfig.vel['retract'], PicktipConfig.acc['retract'])
@@ -2659,6 +2661,35 @@ def setUp_picktip(targetZ, tip):
 		p.set_motor_enabled(0,1)
 		move_abs_z(PicktipConfig.retractDist[tip], PicktipConfig.vel['1st'], PicktipConfig.acc['1st'])
 		return False
+
+def tipStroke(targetZ):
+	p.set_AD9833_Frequency(PicktipConfig.freq)
+	time.sleep(PicktipConfig.freq_delay)
+	init_res = np.average([sensing.res() for i in range(PicktipConfig.sampleSize)])
+	init_col = np.average([sensing.col() for i in range(PicktipConfig.sampleSize)])
+	defaultCurr = [p.get_motor_currents(0)[cur] for cur in list(p.get_motor_currents(0).keys())]
+	defaultFolError = p.get_fol_error_config(0)['max_fol_error']
+
+	# FIRST MOVE
+	p.set_fol_error_config(0,1,PicktipConfig.folErrorLimit['1st'])	
+	p.set_abort_threshold(InputAbort.COLLISION1,init_col-PicktipConfig.colThres)
+	p.set_abort_threshold(InputAbort.COLLISION2,init_col+PicktipConfig.colThres)
+	collision1 = 1 << InputAbort.COLLISION1
+	collision2 = 1 << InputAbort.COLLISION2
+	p.set_abort_config(AbortID.MOTORHARDBRAKE,False, collision1+collision2, collision1)
+	move_abs_z(targetZ, PicktipConfig.vel['1st'], PicktipConfig.acc['1st'])
+	status = p.get_motor_status(0)
+
+	if status != 4:
+		printg ("collision pick tip triggered")
+		p.clear_motor_fault(0)
+		p.set_motor_enabled(0,1)
+		p.set_fol_error_config(0,1,PicktipConfig.folErrorLimit['2nd'])
+		p.set_motor_currents(0, PicktipConfig.current['boost'], PicktipConfig.current['travel'], PicktipConfig.current['hold'])
+		p.set_encoder_correction_enable(0,0)
+		move_abs_z(targetZ+PicktipConfig.picktipOffset, PicktipConfig.vel['1st'], PicktipConfig.vel['2nd'])
+		printbr('POS',get_encoder_position())
+
 """
 
 # PICKTIP
@@ -2723,7 +2754,7 @@ def setUp_picktip(targetZ, tip):
 	# RETRACT MOVE
 	clear_motor_fault()
 	print('retract..')
-	move_rel_z(PicktipConfig.retractDist[tip], PicktipConfig.retractVel, PicktipConfig.retractAcc)
+	#move_rel_z(PicktipConfig.retractDist[tip], PicktipConfig.retractVel, PicktipConfig.retractAcc)
 	p.set_motor_currents(0, *defaultCurr)
 	return True
 	## VALIDATE
@@ -2755,97 +2786,99 @@ def setUp_picktip(targetZ, tip):
 	#else: 
 	#	printr('Picking Tip Failed')
 	#	return False
-
+"""
 
 # PIPETTING
 
 class PLLDConfig():
-	flow = {20:10, 200:10, 1000:40}
-	flow_delay = 250
-	stem_vel = 15
-	stem_acc = 1000
-	colThres = 100
-	pressThres = {20:4.5, 200:4.5, 1000:2.0}
-	resThres = 500
-	freq = 500
-	freq_delay = 250/1000.0
-	cutOff_freq = 100
-	useDynamic = True
-	pAvgSample = 1000
-	stripGap = 0.4
-	abortDecel = ((stem_vel*stem_eng)**2)/(2*(stripGap*stem_eng))
+    flow = {20:10, 200:10, 1000:40}
+    flow_delay = 250
+    stem_vel = 15
+    stem_acc = 1000
+    colThres = 100
+    pressThres = {20:4.5, 200:4.5, 1000:2.0}
+    resThres = 500
+    freq = 500
+    freq_delay = 300/1000.0
+    lpf_freq = 100
+    useDynamic = True
+    pAvgSample = 100
+    stripGap = 0.4
+    abortDecel = ((stem_vel*stem_eng)**2)/(2*(stripGap*stem_eng))
 
-class WLLDConfig():
-	stem_vel = 15
-	stem_acc = 1000
-	colThres = 40
-	resThres = 50
-	freq = 510
-	freq_delay = 250/1000.0
+class WLLDConfig(): 
+    stem_vel = 15
+    stem_acc = 1000
+    colThres = 40
+    resThres = 50
+    freq = 500
+    freq_delay = 300/1000.0
+    lpf_freq = 1000
 
 class PrereadingConfig():
-	stem_vel = 10
-	stem_acc = 1000
-	stepDown = 1
-	readDelay = 300/1000.0
-	freq = 120
-	freq_delay = 250/1000.0
-	thresMultiplier = 0.25 # higher value ~ less sensitive
-	dlltMinAspThres = 200
-	dlltMinDspThres = 200
-	dlltMinThres = -700
-	dlltMaxThres = 700
+    stem_vel = 10
+    stem_acc = 1000
+    stepDown = 1
+    readDelay = 300/1000.0
+    lpf_freq = 10
+    freq = 120
+    freq_delay = 300/1000.0
+    thresMultiplier = 0.25 # higher value ~ less sensitive
+    dlltMinAspThres = 200
+    dlltMinDspThres = 200
+    dlltMinThres = -700
+    dlltMaxThres = 700
 
-class DLLTConfig(): # ================== THIS IS V2 CONFIG
-	sampleSize = 25
-	class Res:
-		stepSize = 2.5
-		bigStep = 10
-		kp = {20: 0.2, 200: 0.15, 1000: 0.95}
-		#kp = {20: 1.2, 200: 0.15, 1000: 0.95}
-		ki = {20: 0, 200: 0, 1000: 0}
-		kd = {20: 0.126, 200: 0, 1000: 0.095}
-		inverted = False
-		stem_vel = {20: 10, 200: 10, 1000:10}
-		#stem_acc = {20: 20, 200: 20, 1000:20}
-		stem_acc = {20: 200, 200: 200, 1000:200}
-		colThres = 40
-		pidPeriod = 1
+class DLLTConfig():
+    sampleSize = 25
+    class Res:
+        lpf_freq = 1000
+        stepSize = 0.3
+        bigStep = 1.2
+        kp = {20: 2.5, 200: 2.5, 1000: 2.5}
+        ki = {20: 0, 200: 0, 1000: 0}
+        kd = {20: 10, 200: 10, 1000: 10}
+        stem_vel = {20: 40, 200: 40, 1000:40}
+        stem_acc = {20: 500, 200: 500, 1000:500}
+        lpf_freq = 1000
+        colThres = 40
+        pidPeriod = 1
+        inverted = False
 
-	class Geo:
-		trackFactor = 6.36
-		stem_vel = 150
-		stem_acc = 2000
-		inverted = False
-		startVolThres = 0
-		colThres = 40
-		trackProfile = 'ProfileLookUpTable'
+    class Geo:
+        trackFactor = 6.36
+        stem_vel = 150
+        stem_acc = 2000
+        inverted = False
+        startVolThres = 0
+        colThres = 40
+        trackProfile = 'ProfileLookUpTable'
 
 class PipettingConfig():
-	NonPipettingResponseMS = 60
+    NonPipettingResponseMS = 60
 
 class chipCalibrationConfig():
-	upperLimit = 5.0
-	lowerLimit = -200.0
-	colCompressTolerance = 4.0
+    upperLimit = 5.0
+    lowerLimit = -200.0
+    colCompressTolerance = 4.0
 
 class DPCConfig():
-	kp = 0.1
-	ki = 0.00001
-	kd = 0.3
-	#kd = 0.1 #if too aggresive
-	i_limit = 1.0
+    kp = 0.1
+    ki = 0.00001
+    kd = 0.3
+    i_limit = 1.0
+    sampleSize = 100
+    lpf_freq = 50
 
-	@staticmethod
-	def calculateVolLimit(tip,vol):
-		# Careful with the volume higher than maximum
-		if tip == 20: # Max 25 uL | limit range 20 - 8 uL
-			return 20-(abs(vol)*0.48)
-		elif tip == 200: # Max 210 uL | limit range 100 - 20 uL
-			return 100-(abs(vol)*0.38095238095238093)
-		elif tip == 1000: # Max 1100 uL | limit range 500 - 100 uL
-			return 500-(abs(vol)*0.36363636363636365)
-
+    @staticmethod
+    def calculateVolLimit(tip,vol):
+        # Careful with the volume higher than maximum
+        if tip == 20: # Max 25 uL | limit range 20 - 8 uL
+            return 20-(abs(vol)*0.48)
+        elif tip == 200: # Max 210 uL | limit range 100 - 20 uL
+            return 100-(abs(vol)*0.38095238095238093)
+        elif tip == 1000: # Max 1100 uL | limit range 500 - 100 uL
+            return 500-(abs(vol)*0.36363636363636365)
 def setUp_plld(tip=20, lowSpeed=False, detectMode=0):
 	printg(f'Setting Up PLLD for P{tip} | Flow: {PLLDConfig.flow[tip]} | Pthres: {PLLDConfig.pressThres[tip]}')
 	p.select_flow_sensor(0)
@@ -2855,8 +2888,9 @@ def setUp_plld(tip=20, lowSpeed=False, detectMode=0):
 	time.sleep(PLLDConfig.freq_delay)
 	print('press2 init', sensing.p2())
 	# Find threshold
-	p.set_sensor_lpf_cutoff(SensorID.PRESSURE_P1, True, PLLDConfig.cutOff_freq)
-	p.set_sensor_lpf_cutoff(SensorID.PRESSURE_P2, True, PLLDConfig.cutOff_freq)
+	p.set_sensor_lpf_cutoff(SensorID.PRESSURE_P1, True, PLLDConfig.lpf_freq)
+	p.set_sensor_lpf_cutoff(SensorID.PRESSURE_P2, True, PLLDConfig.lpf_freq)
+	p.set_sensor_lpf_cutoff(SensorID.DLLT_RESISTANCE,True, WLLDConfig.lpf_freq)
 	average_pressure(PLLDConfig.pAvgSample)
 	p_ref = globals()['AverageP2']
 	p2Max = globals()['Max_p2']
@@ -2904,7 +2938,9 @@ def setUp_plld(tip=20, lowSpeed=False, detectMode=0):
 	return round(p_ref,2), round(resLimit,2)
 
 def setUp_wlld():
+	#sensor setup
 	printg(f'Setting Up WLLD -> resThres: {WLLDConfig.resThres}')
+	p.set_sensor_lpf_cutoff(SensorID.DLLT_RESISTANCE,True,WLLDConfig.lpf_freq)
 	p.set_AD9833_Frequency(WLLDConfig.freq)
 	time.sleep(WLLDConfig.freq_delay)
 	# Clear All Abort
@@ -2964,17 +3000,16 @@ class PostTrigger(threading.Thread):
 			try: i.terminate()
 			except: pass
 
-def combineDict(dict1, dict2):
-	newDict = {}
-	for key1 in dict1.keys():
-		if key1 not in newDict.keys(): newDict[key1] = dict1[key1]
-		for key2 in dict2.keys():
-			if key1 != key2:
-				if key1 + key2 not in newDict.keys(): 
-					newDict[key1 + key2] = str(dict1[key1])+'+'+str(dict2[key2])
-	return newDict
-
 def check_triggered_input(abort=None):
+	def combineDict(dict1, dict2):
+		newDict = {}
+		for key1 in dict1.keys():
+			if key1 not in newDict.keys(): newDict[key1] = dict1[key1]
+			for key2 in dict2.keys():
+				if key1 != key2:
+					if key1 + key2 not in newDict.keys(): 
+						newDict[key1 + key2] = str(dict1[key1])+'+'+str(dict2[key2])
+		return newDict
 	def getInput(abort=None):
 		inputPack ={
 			1<<0 : 'MOTORFAULT',

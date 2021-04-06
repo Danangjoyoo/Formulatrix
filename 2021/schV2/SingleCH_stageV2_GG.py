@@ -1,4 +1,4 @@
-### Script Version : v2021.4.1.91541
+### Script Version : v2021.4.6.132333
 from misc import *
 import FloDeck_stageV2_GG as deck
 import pregx as pr
@@ -32,7 +32,7 @@ P20_picktip_z = -136
 #Zpick   = [-114,-104]
 
 #pick_targets    = {20: -199, 200: -190.5, 1000: -143.5}
-pick_targets    = {20: -199, 200: -188.0, 1000: -143.5}
+pick_targets    = {20: -199, 200: -187.7, 1000: -143.5}
 asp_targets     = {20: -180, 200: -170, 1000: -120}
 dsp_targets     = {20: -120, 200: -130, 1000: -80}
 safes           = {20: -95, 200: -85, 1000: -20}
@@ -2231,8 +2231,9 @@ class mainLLT():
 		@staticmethod
 		def start(tip=20):
 			print(f'Resistance LLT P{tip} Started..')
+			c.p.set_sensor_lpf_cutoff(c.SensorID.DLLT_RESISTANCE,True,c.DLLTConfig.Res.lpf_freq)
 			c.set_collision_abort(c.DLLTConfig.Res.colThres)
-			#c.p.set_liquid_tracking_limit(True, c.chipCalibrationConfig.upperLimit*c.stem_eng, c.chipCalibrationConfig.lowerLimit*c.stem_eng)
+			c.p.set_liquid_tracking_limit(True, c.chipCalibrationConfig.upperLimit*c.stem_eng, c.chipCalibrationConfig.lowerLimit*c.stem_eng)
 			c.p.set_liquid_tracking_resistance_params(
 				c.DLLTConfig.Res.kp[tip],
 				c.DLLTConfig.Res.ki[tip],
@@ -2322,7 +2323,6 @@ class mainLLT():
 		printg('DLLT limit:');c.readConfig(c.p.get_liquid_tracking_limit)
 		printg('DLLT Move Profile:'); c.readConfig(c.p.get_liquid_tracking_move_profile)
 		printg('DLLT pid:'); c.readConfig(c.p.get_liquid_tracking_resistance_params)
-		printg('Tracking Limit:'); c.readConfig(c.p.get_liquid_tracking_limit)
 		printg('Tracking Table Pos:'); c.readConfig(c.p.get_liquid_tracking_table_position,0)
 		printg('Tracking Run Status:'); print(c.p.get_liquid_tracker_run())
 
@@ -2360,12 +2360,15 @@ class mainLLT():
 
 	@staticmethod
 	def preReading(move=0):
+		default_lpf = c.p.get_sensor_lpf_cutoff(c.SensorID.DLLT_RESISTANCE)['cut_off_hz']
+		c.p.set_sensor_lpf_cutoff(c.SensorID.DLLT_RESISTANCE,True,c.PrereadingConfig.lpf_freq)
 		if c.p.get_AD9833_Frequency() != c.PrereadingConfig.freq: 
 			c.set_freq(c.PrereadingConfig.freq, c.PrereadingConfig.freq_delay)
 		c.move_rel_z(move,c.PrereadingConfig.stem_vel, c.PrereadingConfig.stem_acc)
 		time.sleep(c.PrereadingConfig.readDelay)
 		res = np.average([c.sensing.res() for i in range(c.DLLTConfig.sampleSize)])
 		z = c.get_motor_pos()
+		c.p.set_sensor_lpf_cutoff(c.SensorID.DLLT_RESISTANCE,True,default_lpf)
 		return res, z
 
 	@staticmethod
@@ -2430,7 +2433,7 @@ class mainLLT():
 			#mainLLT.run(tip=tip, operation='dsp')
 			dispense(vol*1.1, tip)
 			time.sleep(0.5)
-			cplotter.terminate()
+		splotter.terminate()
 		mainLLT.terminate(postMove=True)
 		#time.sleep(2)
 		#mainLLT.terminate(postMove=True)
@@ -2441,8 +2444,8 @@ class mainLLT():
 	@staticmethod
 	def pipettingTest(tip, volume,iters=1,live=True):
 		if live:
-			mainLLT.test_setUp(tip, volume, iters)
 			splotter.liveplot(p1=(True,3,-2000),p2=(True,3,-2000),res=(True,0.4,0),vel=(True,20,0))
+			mainLLT.test_setUp(tip, volume, iters)
 		else:
 			return mainLLT.test_setUp(tip, volume, iters, log=True)
 
@@ -2465,6 +2468,8 @@ class DPC():
 		ki = c.DPCConfig.ki
 		kd = c.DPCConfig.kd
 		i_limit = c.DPCConfig.i_limit
+		c.p.set_sensor_lpf_cutoff(6,True,10)
+		c.p.set_sensor_lpf_cutoff(7,True,10)
 		c.p.set_regulator_pid(0,2,kp,ki,kd,0.1)
 		volLimit = c.DPCConfig.calculateVolLimit(tip=tip,vol=vol)
 		c.dpc_on(volLimit)
@@ -2515,12 +2520,9 @@ class DPC():
 		tare()
 		DPC.runStat = True
 		align(1,'D10',globals()['asp_targets'][tip]+40)
-		#c.start_logger(sensorm=2608+8192,openui=False); time.sleep(0.3)
-		#dpc.warmingUp(tip,vol,5)
 		lld.findSurface(globals()['asp_targets'][tip],tip=tip)
 		p1_lld = c.sensing.p1()
 		p2_lld = c.sensing.p2()
-		#p2_lld = c.PostTrigger.press
 		llt.preReading(-1)
 		p1_llt = c.sensing.p1()
 		p2_llt = c.sensing.p2()
@@ -2561,6 +2563,7 @@ class DPC():
 			now = time.perf_counter()
 			DPC.counter = now - t0
 			printy(' elapsed: {}s end in {}s\t'.format(int(DPC.counter), dur), end='\r')
+			if not c.p.get_valve(): printr('-\n valve closed at: {}\t\n-'.format(int(DPC.counter), dur), end='\r')
 			if kb.is_pressed('alt+ESC'):
 				printy('\nelapsed: {}s end in {}s\t'.format(int(DPC.counter), dur))
 				printr('DPC Test Aborted')
@@ -2591,7 +2594,7 @@ class DPC():
 		eject(ejectpos=pickstat[2],tip=tip)
 		c.abort_flow()
 		
-		dpc.coolingDown(5)
+		dpc.blowOut(5)
 
 		c.move_rel_z(50,100,500)
 		printg('DPC Test Done')
@@ -2610,59 +2613,7 @@ class DPC():
 				pref, c.Max_p2-c.Min_p2, p1e, p1eRate, p2e, p2eRate))
 
 	@staticmethod
-	def calculateVol(vol=0):
-		printy('Calculating VOlume..')
-		df = pd.read_csv(c.file_name)
-		tick = [int(i) for i in df['Tick'][:len(df)-2]]
-		p1 = [float(i) for i in df['Pressure_P1'][:len(df)-2]]
-		p2 = [float(i) for i in df['Pressure_P2'][:len(df)-2]]
-		valve =  df['Valve_in_open'][:len(df)-2]
-		valvePoint = []
-		for i in range(len(valve)):
-			if i > 0:
-				if valve[i] and not valve[i-1]:
-					if len(valvePoint) == 0: valvePoint.append(i)
-				elif not valve[i] and valve[i-1]:
-					if len(valvePoint) == 1: valvePoint.append(i)
-
-		noiseP1 = max(p1[:10]) - min(p1[:10])
-		noiseP2 = max(p2[:10]) - min(p2[:10])
-		dp = [p2[i] - p1[i] for i in range(len(p1))]
-		aspPoint = []
-		#for i, d in enumerate(dp[valvePoint[0]:valvePoint[1]]):
-		for i, d in enumerate(dp):
-			if d > dp[0] + noiseP1 + noiseP2:
-				if len(aspPoint) == 0:
-					aspPoint.append(i)
-			else:
-				if len(aspPoint) == 1:
-					aspPoint.append(i)		
-
-		scale = c.p.get_sensor_config(int(c.p.get_selected_flow_sensor()))['cal_static_asp']
-		offset = c.p.get_sensor_config(int(c.p.get_selected_flow_sensor()))['flow_drift_asp']
-
-		calculatedVol = 0
-		#for d in dp[aspPoint[0]:aspPoint[1]]:
-		for d in dp:
-			calculatedVol += (d*scale + offset)/1000
-
-		printm('Calculated Vol:', calculatedVol)
-
-	@staticmethod
-	def warmingUp(tip,vol,dur=60):
-		printy(f'DPC Warming Up for {dur}s')
-		a = time.perf_counter()
-		dpc.on(tip,vol)
-		while time.perf_counter()-a < dur: 
-			if c.p.get_valve():
-				pass
-			else:
-				dpc.on(tip,vol)
-		dpc.off()
-		printg(f"Warming Up Completed! Elapsed: {int(time.perf_counter() - a)} s")
-
-	@staticmethod
-	def coolingDown(dur):
+	def blowOut(dur):
 		printb(f'COOLING DOWN for {dur} s, please wait..')
 		printb('hi blow..')
 		c.p.select_flow_sensor(1)
@@ -2673,8 +2624,14 @@ class DPC():
 		c.start_flow(150,dur)
 
 	@staticmethod
-	def multipleTest(n=6):
-		fname = 'Level/DPCTest_Summary.csv'; tlen = 37
+	def multipleTest(*inputs):
+		if not inputs: inputs = input("Iter,Tip,Vol,Liquid >> ")
+		inputs = inputs.split(",")
+		n = int(inputs[0])
+		tip = int(inputs[1])
+		vol = float(inputs[2])
+		liquid = int(inputs[3])
+		fname = 'Level/DPCTest_Summary_{}.csv'.format(int(time.time())); tlen = 37
 		with open(fname,'a') as f: 
 			head = '\n\n'
 			for i in range(tlen): head += '{},' if i < tlen-1 else '{}'
@@ -2690,19 +2647,53 @@ class DPC():
 					'p2_dpcPref','pnoise','p1ErrorSum','p1ErrorRate','p2ErrorSum','p2ErrorRate'))
 		for i in range(n):
 			printbb('Test No :',i+1)
-			#dpc.test(20,20,60,1,1)
 			dpc.test(1000,1000,60,1,1)
 
 	@staticmethod
-	def leakTest():
-		align(2,'D10',-30)
-		#time.sleep(5)
-		lld.findSurface(-190,lld='wet')
-		c.move_rel_z(-1,10,10)
-		leakRate = c.leak_v20()
-		c.move_rel_z(30,100,500)
-		print(leakRate)
-		return leakRate
+	def report():
+		result = {
+			"visual": [],
+			"sym" 	: [],
+			"log" 	: [],
+		}
+
+		printbdb("==== DPC REPORT ====")
+		printy("!!please input with '+' if more than one error occured!!")
+		printy("Ex: 1,2 or 1,3 etc..\n---------------------")
+
+		printb("Failure Indicators")
+		print("0: DPC Succeed")
+		print("1: Liquid Hanging")
+		print("2: Liquid Dripping")
+		print("3: Liquid Went Up")
+		print("4: others")
+		visualCheck = inputs("report >>")
+		for i in [0,1,2,3,4]: 
+			if str(i) in visualCheck: result['visual'].append(i)
+
+		if result['visual'] and any(result['visual']):
+			anySymptom = inputs("Any Symptoms? y/n")
+			if str.lower(anySymptom) == 'y':
+				printb("Failure Symptoms")
+				print("1: Pressure Oscillating")
+				print("2: Liquid Hunting (went up & down)")
+				print("3: Tips Went Wet")
+				print("4: others")
+				symptomsCheck = inputs("report >>")
+				for i in [1,2,3,4]:
+					if str(i) in symptomsCheck: result['sym'].append(i)
+
+		printy("Please Open Log File on FirmwareLog Folder!")
+		logname = fd.askopenfilename(initialdir=os.getcwd())
+		DPC.readLog(logname)
+
+		log = pd.read_csv(logname)
+		log.to_csv()
+
+		date= f'{loc[0]}.{loc[1]}.{loc[2]}.{loc[3]}{loc[4]}{loc[5]}'
+
+
+
 
 	@staticmethod
 	def checkSetUp(sample=1000):
@@ -2787,13 +2778,6 @@ class DPC():
 
 dpc = DPC
 
-def go():
-	align(0,'A1',-100)
-	for i in range(6):
-		printbb('ITER',i)
-		c.move_abs_z(-188.4,10,10)
-		c.leak_v20()
-		c.move_abs_z(-150.3,100,100)
 
 # NOTIFICATION & ALERT
 class avoidInpErr():

@@ -282,7 +282,7 @@ class SPlotter():
 						self.__init = False
 						time.sleep(0.1)
 					# Movement
-					self.__current_t = round(time.perf_counter() - self.__init_t, 3)
+					self.__current_t = time.perf_counter() - self.__init_t
 					self.__current_pos = abs(self.object.get_encoder_position(0))-self.__init_pos
 					self.__current_vel = (self.__current_pos-self.__before_pos)/(self.__current_t-self.__before_t)
 					self.__current_acc = (self.__current_vel - self.__before_vel)/(self.__current_t-self.__before_t)
@@ -326,7 +326,7 @@ class SPlotter():
 				if self.staticVar:
 					for var in self.staticVar: self.staticVar[var][-1].setData(self.__x, self.staticVar[var][container])
 				# end of plotting ======================= save to logs
-				spd = round((time.perf_counter() - t1)*1000.0,1)
+				spd = round((time.perf_counter() - t1)*1000.0,1)				
 				self.__writeLog([self.__n,round(time.perf_counter(),2),*vals])
 				self.__wiplot.setLabel('top',f'{spd} ms/tick')
 				self.__n += 1
